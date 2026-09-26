@@ -86,6 +86,22 @@ Both PADS converters fit coordinates against matching reference designators and 
 
 After conversion, use the `.kicad_pcb` and exported files for the review in subsequent steps.
 
+### Step 1.8: Architecture Diagrams (mandatory, before detailed findings)
+
+Before any checklist findings, produce TWO Graphviz DOT diagrams that fix the design's architecture. These are REQUIRED deliverables for every review (not optional), and the detailed review must cross-check findings against them. See `references/architecture-diagrams.md` for the full style spec and copy-paste DOT templates.
+
+1. **System block diagram** — `<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
+2. **Power tree** — `<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
+
+Render both to PNG and SVG with Graphviz `dot`:
+```bash
+dot -Tpng -o <project>_system_block_diagram.png <project>_system_block_diagram.dot
+dot -Tsvg -o <project>_system_block_diagram.svg <project>_system_block_diagram.dot
+# (repeat for <project>_power_tree)
+```
+
+**Placement:** put the `.dot`/`.png`/`.svg` deliverables in the PROJECT directory — the same folder that holds the source schematic/board files. Never in the WorkBuddy workspace or a separate deep subfolder. The coverage table (Step 2.5) must list the generated file paths as evidence.
+
 ### Step 2: Load Reference Checklists
 
 Based on detected review scope, load the appropriate reference documents:
@@ -94,6 +110,7 @@ Based on detected review scope, load the appropriate reference documents:
 - **PCB review**: Read `references/pcb-review.md`
 - **BOM review**: Read `references/bom-review.md`
 - **Standards reference**: Read `references/standards-reference.md` (always load for cross-referencing)
+- **Architecture diagrams**: Read `references/architecture-diagrams.md` (mandatory for every review — defines the required Graphviz DOT format/style for the system block diagram and power tree that Step 1.8 produces).
 - **Mandatory and conditional checks**: Read `references/conditional-review.md` for every review. It defines the evidence gate (system block diagram and power tree), all-case ESD review, and feature-triggered checks for batteries, antennas, USB-C, 4G, motors, and CERE/project power baselines.
 
 These reference files contain detailed checklists organized by review dimension. Use them systematically - go through each checklist item and evaluate the design against it.
@@ -103,11 +120,12 @@ These reference files contain detailed checklists organized by review dimension.
 Before writing findings, determine whether the design contains a battery,
 antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
 project-specific CERE requirement. Apply every matching conditional checklist.
-Regardless of detected features, confirm the system block diagram, power tree,
-ESD/external-boundary review, and project power baseline. Record each item as
-`confirmed`, `finding`, `not applicable` with evidence, or `not verifiable` due
-to missing evidence. The final report must include the coverage table defined in
-`references/conditional-review.md`.
+Regardless of detected features, confirm the generated system block diagram and
+power tree (the Graphviz DOT deliverables from Step 1.8), the ESD/external-boundary
+review, and the project power baseline. Record each item as `confirmed`,
+`finding`, `not applicable` with evidence (for the two diagrams, cite the
+`.dot`/`.png` file paths), or `not verifiable` due to missing evidence. The final
+report must include the coverage table defined in `references/conditional-review.md`.
 
 ### Step 3: Execute Review
 
@@ -354,7 +372,7 @@ Always reference `references/standards-reference.md` during review to:
 5. **Prioritize by risk** - Always highlight critical findings first in the summary and top risks section.
 6. **Maintain objectivity** - Base findings on technical facts and standards, not opinion. If uncertain, mark as "Warning" with a note to verify.
 7. **Verify, don't assume** - Every connection-related finding MUST be backed by a `TelNetlist` lookup (`references/netlist-verification.md`). Specifically: (a) parse netlists ONLY with `scripts/parse_netlist.py`, never line-prefix regex; (b) for substitute parts, verify the **substitute's** datasheet pinout/features before asserting a defect carried over from the PRD part's assumptions (e.g. internal vs external current sense); (c) derive I2C addresses by tracing each strap pin to its net, never by assuming strap-pin numbers or addresses from memory. If a finding is not backed by a netlist lookup and, where relevant, a datasheet check, it is a hypothesis — mark it `warning`/"verify" or drop it; never ship it as `critical`.
-8. **Close the coverage loop** - Every final report must show system block diagram, power tree, ESD, CERE/project baseline, and all triggered feature checks, including explicit not-applicable or not-verifiable statuses.
+8. **Close the coverage loop** - Every final report must include the system block diagram and power tree as generated Graphviz DOT deliverables (Step 1.8), ESD, CERE/project baseline, and all triggered feature checks, including explicit not-applicable or not-verifiable statuses. The coverage table must cite the diagram file paths.
 
 ## Resources
 
@@ -396,6 +414,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
 - `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, and CERE/project power baselines.
+- `architecture-diagrams.md` - **MANDATORY format spec for the system block diagram and power tree** produced in Step 1.8. Defines the required Graphviz DOT style (layered functional blocks + net-label edges, no internal detail) and gives copy-paste DOT templates for both diagrams plus rendering commands.
 - `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures.
 
 ### assets/
@@ -412,7 +431,7 @@ No assets required. The HTML report is generated dynamically by the script.
 1. Classify files - .PcbDoc = Altium PCB, CSV = BOM
 2. Convert PCB: `python3 scripts/convert_layout.py board.PcbDoc --output-dir ./output --export-all`
    - Output: `output/board.kicad_pcb`, `output/gerber/`, `output/drill/`, `output/netlist.net`
-3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, and `references/conditional-review.md`
+3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/architecture-diagrams.md`
 4. Parse converted .kicad_pcb - extract layer stackup, tracks, vias, component footprints, copper zones
 5. Parse BOM CSV - extract part numbers, quantities, descriptions
 6. Apply PCB checklist (8 dimensions including footprint verification)
@@ -431,7 +450,7 @@ No assets required. The HTML report is generated dynamically by the script.
 **Workflow**:
 1. Classify files - PDF = schematic, CSV = BOM
 2. No conversion needed (PDF and CSV are directly reviewable)
-3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, and `references/conditional-review.md`
+3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/architecture-diagrams.md`
 4. Parse schematic PDF - extract component list, power rails, signal connections, protection circuits
 5. Parse BOM CSV - extract part numbers, quantities, descriptions
 6. Apply schematic checklist (5 dimensions)

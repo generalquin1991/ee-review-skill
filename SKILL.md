@@ -38,7 +38,8 @@ Analyze the provided files to determine the review scope:
 | Input File Type | Detected Extension | Review Scope |
 |----------------|-------------------|-------------|
 | Schematic PDF | .pdf (containing circuit diagrams) | Schematic review |
-| Netlist / Schematic source | .net, .sch, .kicad_sch, .schdoc, .DSN | Schematic + PCB review |
+| Schematic source (KiCad / Altium / others) | .kicad_sch, .sch, .schdoc | Schematic review — export a netlist first (KiCad: `kicad-cli sch export netlist --format kicadxml`; Altium: File ▸ Export ▸ Netlist), then parse it. |
+| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn | Schematic + PCB review — parse with `scripts/parse_kicad_netlist.py` (KiCad `.xml`) or `scripts/parse_netlist.py` (TARGET `.tel`/`.net`/`.dsn`). |
 | KiCad PCB | .kicad_pcb | PCB design review (native, no conversion) |
 | Altium PCB | .PcbDoc, .pcbdoc | PCB design review (auto-convert via kicad-cli) |
 | PADS ASCII | .asc | PCB design review (auto-convert via kicad-cli) |
@@ -113,8 +114,11 @@ to missing evidence. The final report must include the coverage table defined in
 For each applicable review dimension, systematically evaluate the design:
 
 1. **Parse the input files** - Extract component lists, net connections, design rules, and structural information.
-   - **If the input is a netlist (`.tel`, `.net`, `.dsn`, KiCad `.net`) you MUST parse it with `scripts/parse_netlist.py` (the `TelNetlist` class).** This parser is continuation-aware and builds `pin->net` / `net->pins` indexes via reverse lookup. **Do NOT** hand-roll regex that scans lines by prefix — long nets span multiple physical lines and a prefix scan will silently drop continuation pins, producing false "pin missing / device unpowered" findings. See `references/netlist-verification.md` for the mandatory verification discipline and real failure-mode examples.
-   - Any claim that a pin is connected, miswired, or **not connected** must be proven by a `TelNetlist` lookup (`pin_net`, `net_pins`, `component_pins`, `missing_pins`). A "device not connected" claim requires `component_pins(ref)` to confirm the pin is absent across the *entire* netlist.
+   - **If the input is a netlist you MUST parse it with a real parser — never hand-roll line-prefix regex.** Route by source format:
+     - **KiCad** (`.kicad_sch` / `.sch` / `.schdoc`): export the netlist as XML first — `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch` — then parse with `scripts/parse_kicad_netlist.py` (the `KicadNetlist` class). `KicadNetlist` wraps KiCad's own `kicad_netlist_reader`, so every pin→net fact comes from KiCad's native parser. **Do NOT** feed the default `kicadsexpr` (S-expression) export to either parser — it is not XML and will silently yield 0 nets.
+     - **TARGET / PADS-style** (`.tel` / `.net` / `.dsn` with `$NETS`/`$PACKAGES`): parse with `scripts/parse_netlist.py` (the `TelNetlist` class). This parser is continuation-aware and builds `pin->net` / `net->pins` indexes via reverse lookup.
+     Long nets span multiple physical lines and a prefix scan will silently drop continuation pins, producing false "pin missing / device unpowered" findings. See `references/netlist-verification.md` for the mandatory verification discipline and real failure-mode examples.
+   - Any claim that a pin is connected, miswired, or **not connected** must be proven by a parser lookup — `TelNetlist` for TARGET `.tel`/`.net`/`.dsn`, or `KicadNetlist` for KiCad kicadxml (both expose `pin_net`, `net_pins`, `component_pins`, `missing_pins`). A "device not connected" claim requires `component_pins(ref)` to confirm the pin is absent across the *entire* netlist.
 2. **Apply checklist items** - Go through each item in the reference checklist for the detected dimension.
 3. **Identify findings** - Record each issue found with:
    - Severity level: `critical`, `warning`, or `info`
@@ -207,6 +211,53 @@ Assemble review results into the following JSON structure (save as a temporary `
         "info_count": <number>,
         "top_risks": ["<top risk 1>", "<top risk 2>", "..."],
         "recommendations": ["<recommendation 1>", "<recommendation 2>", "..."]
+    }
+}
+
+    # -----------------------------------------------------------------------
+    # I2C MAP & TOPOLOGY (optional but recommended). generate_report.py's
+    # render_i2c_map / render_i2c_topology consume these; if omitted the report
+    # simply skips the I2C section. Use one entry per I2C bus segment.
+    "i2c_map": {
+        "tree": [
+            {
+                "kind": "controller",        # controller | device
+                "label": "ESP32-S3 (master)",
+                "ref": "U1",
+                "type": "uC",
+                "addr": null,                 # null for controllers
+                "role": "master",             # master | slave
+                "children": [
+                    {
+                        "kind": "device",
+                        "label": "BQ25120A charger",
+                        "ref": "U5",
+                        "type": "pmic",
+                        "addr": "0x6A",
+                        "role": "slave",
+                        "children": []
+                    }
+                ]
+            }
+        ]
+    },
+    "i2c_topology": {
+        "controllers": [
+            {
+                "id": "I2C0",
+                "label": "ESP32-S3 I2C0",
+                "pins": "GPIO8/9 (SCL/SDA)",
+                "shared": false,              # true if >1 controller drives the same bus
+                "nodes": [
+                    {"ref": "U5", "addr": "0x6A", "role": "slave"},
+                    {"ref": "U6", "addr": "0x48", "role": "slave"}
+                ]
+            }
+        ],
+        "pullups": [                          # where are the bus pull-ups?
+            {"net": "SCL", "ref": "R22", "to": "3V3"},
+            {"net": "SDA", "ref": "R23", "to": "3V3"}
+        ]
     }
 }
 ```
@@ -309,7 +360,8 @@ Always reference `references/standards-reference.md` during review to:
 
 ### scripts/
 - validate_skill.py - Preflight wrapper for the Codex structural validator. Checks for PyYAML and the local quick_validate.py before running validation, with actionable install guidance when a dependency is missing.
-- `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn`/KiCad `.net`). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
+- `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
+- `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
 - `convert_layout.py` - Auto-detects PCB layout file format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb, KiCad .kicad_pcb) and converts to KiCad format using kicad-cli. Optionally exports Gerber, drill, pick-place, and netlist files. Includes post-conversion audit that checks for routing trace loss, solder mask/paste settings, via tenting, silk screen completeness, board outline, and copper zones. Requires KiCad 8+ installed.
 - `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.

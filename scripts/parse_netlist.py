@@ -69,6 +69,28 @@ import sys
 from collections import defaultdict
 
 
+# --------------------------------------------------------------- token matcher
+# Net-name matching for verify_by_pinmap. Tokenize on separators and require the
+# expected string to be a WHOLE token. Fixes the old substring bug where "GND"
+# falsely matched "AGND"/"DGND" and "VCC" matched "VCC_1V8". Different grounds
+# are genuinely different nets; "VCC_1V8" sharing the "VCC" token IS the same
+# power domain and is correctly accepted.
+_SEP = re.compile(r"[_\-/. ]")
+
+def _net_matches(net, expected):
+    if net is None:
+        return False
+    if expected is None:
+        return True
+    n = net.strip()
+    e = expected.strip()
+    if not e:
+        return True
+    if n.lower() == e.lower():
+        return True
+    ntokens = {t.lower() for t in _SEP.split(n) if t}
+    return e.lower() in ntokens
+
 class TelNetlist:
     def __init__(self):
         self.net_to_pins = defaultdict(set)   # net name -> {REF.PIN, ...}
@@ -244,10 +266,13 @@ class TelNetlist:
         return set(expected_pins) - present
 
     def verify_by_pinmap(self, ref, pinmap):
-        """pinmap: {pin: expected_net_substring}. Returns list of dicts:
+        """pinmap: {pin: expected_net_token}. Returns list of dicts:
         {pin, connected(bool), net, expected, ok(bool)}.
-        `ok` is True when connected AND the net name contains expected substring
-        (case-insensitive); expected may be None to only check presence."""
+        `ok` is True when connected AND the net name matches the expected token
+        (exact, or as a whitespace/separator-delimited token — case-insensitive).
+        Token matching (via `_net_matches`) prevents the old substring false
+        positive where "GND" matched "AGND"/"DGND" or "VCC" matched "VCC_1V8".
+        expected may be None to only check presence."""
         results = []
         for pin, expected in pinmap.items():
             net = self.pin_net(ref, pin)
@@ -255,7 +280,7 @@ class TelNetlist:
             if expected is None:
                 ok = connected
             else:
-                ok = connected and expected.lower() in net.lower()
+                ok = connected and _net_matches(net, expected)
             results.append({
                 "pin": pin,
                 "connected": connected,

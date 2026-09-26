@@ -2,7 +2,7 @@
 
 This document is the anti-bias checklist that MUST be followed whenever a review
 asserts anything about component pins, nets, or connections in a netlist
-(`.tel`, `.net`, `.dsn`, KiCad `.net`, etc.). It was created after several
+(`.tel`, `.net`, `.dsn`, KiCad `kicadxml`, etc.). It was created after several
 critical findings were raised on a real 16-channel battery-jig review and then
 had to be **retracted** because the supporting evidence was wrong.
 
@@ -28,25 +28,55 @@ There are **two** independent parser traps, and both were hit in practice:
 
 ## Rule 0 — Use the canonical parser, never line-prefix regex
 
-Always parse with `scripts/parse_netlist.py` (or import `TelNetlist`). It is
-**continuation-aware**: a `.tel` net definition can span many physical lines; only
-the first begins with `'`/`$`, while continuation lines are indented and hold only
-`REF.PIN` tokens. Line-prefix scanning silently drops those continuation pins and
-will report a connected pin as "missing".
+There are **two** source formats; pick the matching parser:
 
+- **KiCad** (`.kicad_sch` / `.sch` / `.schdoc`): export the netlist as XML first —
+  `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch` — then parse
+  with `scripts/parse_kicad_netlist.py` (import `KicadNetlist`). `KicadNetlist` wraps KiCad's own
+  `kicad_netlist_reader`, so every pin→net fact comes from KiCad's **native** parser. **Do NOT**
+  feed the default `kicadsexpr` (S-expression) export to either parser — it is not XML and silently
+  yields 0 nets / 0 components.
+- **TARGET / PADS-style** (`.tel` / `.net` / `.dsn` with `$NETS`/`$PACKAGES`): parse with
+  `scripts/parse_netlist.py` (import `TelNetlist`). It is **continuation-aware**: a `.tel` net
+  definition can span many physical lines; only the first begins with `'`/`$`, while continuation
+  lines are indented and hold only `REF.PIN` tokens. Line-prefix scanning silently drops those
+  continuation pins and will report a connected pin as "missing".
+
+Both classes expose the same interface — `pin_net`, `net_pins`, `component_pins`, `is_connected`,
+`missing_pins`, `verify_by_pinmap` — so the rest of this discipline is format-agnostic. (`KicadNetlist`
+additionally exposes `lib_pins(ref)` = the device's full pin list, which is the convenient input to
+`missing_pins` for finding every unconnected pin.)
+
+KiCad example:
+```python
+from parse_kicad_netlist import KicadNetlist
+nl = KicadNetlist.from_file("board.xml")          # KiCad kicadxml netlist
+nl.pin_net("U26", "24")            # -> net name or None
+nl.component_pins("U26")           # -> {pin: net, ...}  (ALL connected pins)
+nl.net_pins("CH_SDA_L15")          # -> set of REF.PIN on that net
+nl.is_connected("U26", "22")       # -> bool
+nl.missing_pins("U26", nl.lib_pins("U26"))  # -> pins absent from the WHOLE netlist
+nl.verify_by_pinmap("U26", {"24":"3V3","12":"GND","23":"SDA","22":"SCL"})
+```
+
+TARGET example:
 ```python
 from parse_netlist import TelNetlist
 nl = TelNetlist.from_file("board.tel")
-nl.pin_net("U26", "24")           # -> net name or None
-nl.component_pins("U26")          # -> {pin: net, ...}  (ALL pins, incl. continuation)
-nl.net_pins("CH_SDA_L15")         # -> set of REF.PIN on that net
-nl.is_connected("U26", "22")      # -> bool
-nl.missing_pins("U26", all_pins)  # -> pins absent from the WHOLE netlist
+nl.pin_net("U26", "24")            # -> net name or None
+nl.component_pins("U26")           # -> {pin: net, ...}  (ALL pins, incl. continuation)
+nl.net_pins("CH_SDA_L15")          # -> set of REF.PIN on that net
+nl.is_connected("U26", "22")       # -> bool
+nl.missing_pins("U26", all_pins)   # -> pins absent from the WHOLE netlist
 nl.verify_by_pinmap("U26", {"24":"3V3","12":"GND","23":"SDA","22":"SCL"})
 ```
 
 CLI:
 ```bash
+# KiCad
+python3 scripts/parse_kicad_netlist.py board.xml --comp U26
+python3 scripts/parse_kicad_netlist.py board.xml --verify U26:24=3V3,12=GND,23=SDA,22=SCL
+# TARGET
 python3 scripts/parse_netlist.py board.tel --comp U26
 python3 scripts/parse_netlist.py board.tel --pins U3.17,U66.B2,ALTER_L15
 python3 scripts/parse_netlist.py board.tel --net CH_SDA_L15

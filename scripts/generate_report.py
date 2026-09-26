@@ -14,6 +14,14 @@ Input JSON schema:
     "input_files": ["schematic.pdf", "bom.xlsx", "pcb.gbr"],
     "overall_grade": "B",
     "overall_summary": "Brief summary text",
+    "coverage": [
+        {
+            "check": "System block diagram",
+            "trigger": "file/page or missing",
+            "status": "confirmed",
+            "evidence": "Sheet 1"
+        }
+    ],
     "dimensions": [
         {
             "name": "Power Supply Design",
@@ -101,6 +109,18 @@ CATEGORY_LABELS = {
     "bom": "BOM",
     "general": "General",
 }
+
+MANDATORY_COVERAGE_CHECKS = (
+    "System block diagram",
+    "Power tree",
+    "ESD and external boundaries",
+    "Battery thermal/energy",
+    "Antenna matching",
+    "USB-C CC",
+    "4G burst power",
+    "Motor transient power",
+    "CERE/project power baseline",
+)
 
 
 def _escape(value):
@@ -490,6 +510,62 @@ def render_conclusion(data):
     </div>"""
 
 
+def render_coverage(data):
+    """Render the mandatory/conditional review coverage table."""
+    coverage = data.get("coverage")
+    if coverage is None:
+        coverage = [
+            {
+                "check": check,
+                "trigger": "Coverage data was not supplied",
+                "status": "not verifiable",
+                "evidence": "Add explicit evidence or not-applicable rationale",
+            }
+            for check in MANDATORY_COVERAGE_CHECKS
+        ]
+    elif not coverage:
+        return ""
+    if isinstance(coverage, dict):
+        rows = []
+        for check, details in coverage.items():
+            details = details if isinstance(details, dict) else {"status": details}
+            rows.append({"check": check, **details})
+    else:
+        rows = coverage
+
+    status_classes = {
+        "confirmed": "coverage-confirmed",
+        "finding": "coverage-finding",
+        "not applicable": "coverage-na",
+        "not verifiable": "coverage-unverified",
+    }
+    rows_html = ""
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        status = str(row.get("status", "not verifiable"))
+        status_class = status_classes.get(status.lower(), "coverage-unverified")
+        rows_html += (
+            f"<tr><td>{_escape(row.get('check', ''))}</td>"
+            f"<td>{_escape(row.get('trigger', ''))}</td>"
+            f"<td><span class='coverage-status {status_class}'>{_escape(status)}</span></td>"
+            f"<td>{_escape(row.get('evidence', row.get('location', '')))}</td></tr>"
+        )
+    if not rows_html:
+        return ""
+    return f"""
+    <div class="coverage-section">
+        <h3>&#9989; Review Coverage</h3>
+        <p class="coverage-note">Mandatory evidence and feature-triggered checks considered for this review.</p>
+        <div class="coverage-table-wrap">
+        <table class="coverage-table">
+            <thead><tr><th>Check</th><th>Trigger / Evidence Expected</th><th>Status</th><th>Evidence / Finding Location</th></tr></thead>
+            <tbody>{rows_html}</tbody>
+        </table>
+        </div>
+    </div>"""
+
+
 def generate_html_report(data):
     """Generate the complete HTML report."""
     project = _escape(data.get("project_name", "EE Design Review"))
@@ -529,6 +605,9 @@ def generate_html_report(data):
 
     # Final conclusion section
     conclusion_html = render_conclusion(data)
+
+    # Mandatory and conditional coverage section
+    coverage_html = render_coverage(data)
 
     # Top risks
     top_risks = summary.get("top_risks", [])
@@ -747,6 +826,20 @@ def generate_html_report(data):
         }}
         .input-files li::before {{ content: "\\1F4C4  "; }}
 
+        /* Mandatory / Conditional Coverage */
+        .coverage-section {{ background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }}
+        .coverage-section h3 {{ font-size: 16px; margin-bottom: 6px; }}
+        .coverage-note {{ color: var(--text-light); font-size: 12.5px; margin-bottom: 14px; }}
+        .coverage-table-wrap {{ width: 100%; overflow-x: auto; }}
+        .coverage-table {{ border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }}
+        .coverage-table th, .coverage-table td {{ border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }}
+        .coverage-table th {{ background: #f0f4f8; color: #455a75; font-weight: 600; }}
+        .coverage-status {{ display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; white-space: nowrap; }}
+        .coverage-confirmed {{ background: #eafaf1; color: #1f8a4c; }}
+        .coverage-finding {{ background: #fdeaea; color: #c0392b; }}
+        .coverage-na {{ background: #eef1f4; color: #596775; }}
+        .coverage-unverified {{ background: #fff4e0; color: #b76e00; }}
+
         /* I2C Map Section */
         .i2c-section {{ background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }}
         .i2c-section h3 {{ font-size: 16px; margin-bottom: 12px; }}
@@ -872,6 +965,9 @@ def generate_html_report(data):
 
         <!-- Input Files -->
         {f'<div class="input-files"><h3>&#128206; Reviewed Files</h3><ul>{files_html}</ul></div>' if files_html else ''}
+
+        <!-- Mandatory / Conditional Review Coverage -->
+        {coverage_html if coverage_html else ''}
 
         <!-- I2C Address Map -->
         {i2c_html if i2c_html else ''}

@@ -93,8 +93,20 @@ Based on detected review scope, load the appropriate reference documents:
 - **PCB review**: Read `references/pcb-review.md`
 - **BOM review**: Read `references/bom-review.md`
 - **Standards reference**: Read `references/standards-reference.md` (always load for cross-referencing)
+- **Mandatory and conditional checks**: Read `references/conditional-review.md` for every review. It defines the evidence gate (system block diagram and power tree), all-case ESD review, and feature-triggered checks for batteries, antennas, USB-C, 4G, motors, and CERE/project power baselines.
 
 These reference files contain detailed checklists organized by review dimension. Use them systematically - go through each checklist item and evaluate the design against it.
+
+### Step 2.5: Mandatory Coverage Gate
+
+Before writing findings, determine whether the design contains a battery,
+antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
+project-specific CERE requirement. Apply every matching conditional checklist.
+Regardless of detected features, confirm the system block diagram, power tree,
+ESD/external-boundary review, and project power baseline. Record each item as
+`confirmed`, `finding`, `not applicable` with evidence, or `not verifiable` due
+to missing evidence. The final report must include the coverage table defined in
+`references/conditional-review.md`.
 
 ### Step 3: Execute Review
 
@@ -162,6 +174,14 @@ Assemble review results into the following JSON structure (save as a temporary `
     "input_files": ["<list of input file paths>"],
     "overall_grade": "<S|A|B|C|D>",
     "overall_summary": "<2-3 sentence overall assessment>",
+    "coverage": [
+        {
+            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|CERE>",
+            "trigger": "<feature trigger or expected evidence>",
+            "status": "<confirmed|finding|not applicable|not verifiable>",
+            "evidence": "<file/page, finding location, or reason unavailable>"
+        }
+    ],
     "dimensions": [
         {
             "name": "<dimension name>",
@@ -223,6 +243,12 @@ When schematic files are detected, apply these review dimensions (see `reference
 4. **Circuit Logic & Correctness** - Functional verification, feedback loops, timing, component values.
 5. **Design Rule Checks** - Netlist consistency, connector pinout, documentation.
 
+For battery designs, Power Supply Design must include temperature protection,
+charge/discharge limits, and usable-energy analysis. For 4G and motor designs,
+it must include peak/inrush transient stability. For projects naming CERE or
+another internal baseline, map the measured design against that controlled
+requirement and mark missing evidence explicitly.
+
 ### PCB Design Review Dimensions
 
 When PCB layout files are detected, apply these review dimensions (see `references/pcb-review.md` for detailed checklists):
@@ -235,6 +261,12 @@ When PCB layout files are detected, apply these review dimensions (see `referenc
 6. **Footprint & Land Pattern Verification** - Footprint accuracy, IPC-7351 pad design, courtyard spacing, orientation marking, footprint-to-BOM cross-check. Includes solder mask opening verification (NSMD/SMD, via tenting, mask slivers), solder paste aperture verification (paste reduction for fine-pitch, thermal pad patterns, per-pad overrides), and PADS-to-KiCad conversion data loss detection.
 7. **DFM/DFT** - Manufacturing rules, testability, assembly considerations.
 8. **Routing Quality** - General routing, via design, net-specific routing rules.
+
+For antenna/RF designs, Signal Integrity and EMC/EMI must include the 50-ohm
+path, matching network, RF keepout, ground stitching, and tuning evidence. For
+USB-C designs, verify both CC pins and role resistors from the netlist and
+controller datasheet; do not accept a single generic "USB connector checked"
+statement.
 
 ### BOM Review Dimensions
 
@@ -271,6 +303,7 @@ Always reference `references/standards-reference.md` during review to:
 5. **Prioritize by risk** - Always highlight critical findings first in the summary and top risks section.
 6. **Maintain objectivity** - Base findings on technical facts and standards, not opinion. If uncertain, mark as "Warning" with a note to verify.
 7. **Verify, don't assume** - Every connection-related finding MUST be backed by a `TelNetlist` lookup (`references/netlist-verification.md`). Specifically: (a) parse netlists ONLY with `scripts/parse_netlist.py`, never line-prefix regex; (b) for substitute parts, verify the **substitute's** datasheet pinout/features before asserting a defect carried over from the PRD part's assumptions (e.g. internal vs external current sense); (c) derive I2C addresses by tracing each strap pin to its net, never by assuming strap-pin numbers or addresses from memory. If a finding is not backed by a netlist lookup and, where relevant, a datasheet check, it is a hypothesis — mark it `warning`/"verify" or drop it; never ship it as `critical`.
+8. **Close the coverage loop** - Every final report must show system block diagram, power tree, ESD, CERE/project baseline, and all triggered feature checks, including explicit not-applicable or not-verifiable statuses.
 
 ## Resources
 
@@ -310,6 +343,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `pcb-review.md` - Detailed PCB design review checklist covering 8 dimensions including footprint/land pattern verification, with sub-items, current capacity tables, and routing rules.
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
+- `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, and CERE/project power baselines.
 - `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures.
 
 ### assets/
@@ -326,7 +360,7 @@ No assets required. The HTML report is generated dynamically by the script.
 1. Classify files - .PcbDoc = Altium PCB, CSV = BOM
 2. Convert PCB: `python3 scripts/convert_layout.py board.PcbDoc --output-dir ./output --export-all`
    - Output: `output/board.kicad_pcb`, `output/gerber/`, `output/drill/`, `output/netlist.net`
-3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`
+3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, and `references/conditional-review.md`
 4. Parse converted .kicad_pcb - extract layer stackup, tracks, vias, component footprints, copper zones
 5. Parse BOM CSV - extract part numbers, quantities, descriptions
 6. Apply PCB checklist (8 dimensions including footprint verification)
@@ -345,7 +379,7 @@ No assets required. The HTML report is generated dynamically by the script.
 **Workflow**:
 1. Classify files - PDF = schematic, CSV = BOM
 2. No conversion needed (PDF and CSV are directly reviewable)
-3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`
+3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, and `references/conditional-review.md`
 4. Parse schematic PDF - extract component list, power rails, signal connections, protection circuits
 5. Parse BOM CSV - extract part numbers, quantities, descriptions
 6. Apply schematic checklist (5 dimensions)

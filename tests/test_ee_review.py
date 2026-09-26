@@ -162,6 +162,27 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Custom topology", report)
         self.assertIn("&lt;b&gt;custom&lt;/b&gt;", report)
         self.assertNotIn("ESP32-S3", report)
+        self.assertIn("System block diagram", report)
+        self.assertIn("not verifiable", report)
+
+    def test_report_renders_mandatory_coverage_table(self):
+        report = generate_report.generate_html_report(
+            {
+                "project_name": "Coverage",
+                "coverage": [
+                    {
+                        "check": "USB-C CC",
+                        "trigger": "USB-C detected",
+                        "status": "not verifiable",
+                        "evidence": "CC1/CC2 not present in supplied netlist",
+                    }
+                ],
+            }
+        )
+        self.assertIn("Review Coverage", report)
+        self.assertIn("USB-C CC", report)
+        self.assertIn("coverage-unverified", report)
+        self.assertIn("CC1/CC2 not present", report)
 
 
 class CliTests(unittest.TestCase):
@@ -183,6 +204,17 @@ class ValidationPreflightTests(unittest.TestCase):
                 result = validate_skill.main(["validate_skill.py"])
         self.assertEqual(result, 2)
         self.assertIn("pip install PyYAML", stderr.getvalue())
+
+
+class SkillCoverageTests(unittest.TestCase):
+    def test_conditional_matrix_is_linked_and_covers_requested_features(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        matrix = (ROOT / "references" / "conditional-review.md").read_text(encoding="utf-8")
+        self.assertIn("references/conditional-review.md", skill)
+        for phrase in ("ESD", "Battery", "Antenna", "USB Type-C", "4G", "Motor", "CERE"):
+            self.assertIn(phrase, matrix)
+        self.assertIn("System block diagram", matrix)
+        self.assertIn("Power tree", matrix)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import io
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import convert_layout
 import generate_report
+import pads_common
+import pads_full_converter
+import pads_route_injector
+import validate_skill
 from parse_netlist import TelNetlist
 
 
@@ -40,6 +45,55 @@ class FormatAndExportTests(unittest.TestCase):
                 export_gerber_flag=True,
             )
         self.assertEqual(results, {"gerber": False})
+
+    def test_conversion_manifest_records_exports_and_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "board.asc"
+            converted = Path(tmp) / "board.kicad_pcb"
+            source.write_text("source", encoding="utf-8")
+            converted.write_text("(kicad_pcb)", encoding="utf-8")
+            manifest_path = convert_layout.write_conversion_manifest(
+                tmp,
+                str(source),
+                "pads",
+                str(converted),
+                export_results={"gerber": True, "drill": False},
+                audit_findings=[{"severity": "warning", "category": "routing"}],
+            )
+            manifest = __import__("json").loads(Path(manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(manifest["source_format"], "pads")
+            self.assertTrue(manifest["artifacts"]["gerber"]["success"])
+            self.assertFalse(manifest["artifacts"]["drill"]["success"])
+            self.assertEqual(len(manifest["audit_findings"]), 1)
+
+
+class PadsCommonTests(unittest.TestCase):
+    def test_parser_uses_shared_sections_and_encoding_fallback(self):
+        pads = """!PADS-POWERPCB-V9.0\n*REMARK* 中文\nUNITS 1\nMAXIMUMLAYER 2\n*VIA*\nVIA1 100 1\n0 200 R\n*PART*\nR1 RES 100 200 0 0 0 0\n*ROUTE*\n*SIGNAL* N1\n100 200 0 50 0\n120 220 0 50 0\n*END*\n"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "board.asc"
+            path.write_bytes(pads.encode("cp936"))
+            lines, encoding = pads_common.read_pads_ascii(path)
+            self.assertEqual(encoding, "cp936")
+            self.assertEqual(pads_common.parse_pads_header(lines)["max_layer"], 2)
+            parts = pads_common.parse_pads_parts(lines)
+            self.assertEqual(parts["R1"].x, 100)
+            routes, nets = pads_common.parse_pads_routes(lines)
+            self.assertEqual(nets, ["N1"])
+            self.assertEqual(len(routes[0]), 2)
+
+            route_parser = pads_route_injector.PadsAsciiParser(str(path))
+            route_parser.parse()
+            full_parser = pads_full_converter.PadsAsciiParser(str(path))
+            full_parser.parse()
+            self.assertEqual(route_parser.encoding, "cp936")
+            self.assertEqual(full_parser.encoding, "cp936")
+            self.assertEqual(len(full_parser.routes), len(route_parser.routes))
+
+    def test_transform_error_threshold_is_explicit(self):
+        self.assertTrue(pads_common.transform_error_allowed(0.01, 0.01))
+        self.assertFalse(pads_common.transform_error_allowed(0.010001, 0.01))
+        self.assertFalse(pads_common.transform_error_allowed(None, 0.01))
 
 
 class NetlistTests(unittest.TestCase):
@@ -120,6 +174,15 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("usage:", result.stdout.lower())
+
+
+class ValidationPreflightTests(unittest.TestCase):
+    def test_missing_pyyaml_has_install_guidance(self):
+        with mock.patch.object(validate_skill, "has_pyyaml", return_value=False):
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                result = validate_skill.main(["validate_skill.py"])
+        self.assertEqual(result, 2)
+        self.assertIn("pip install PyYAML", stderr.getvalue())
 
 
 if __name__ == "__main__":

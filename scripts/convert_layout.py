@@ -5,6 +5,8 @@ convert_layout.py - Auto-detect and convert PCB layout or schematic files to KiC
 Detects input file format by extension and content, then uses kicad-cli to convert
 board files to .kicad_pcb or supported schematic files to .kicad_sch. PCB inputs
 can optionally export Gerber, drill, pick-place, and IPC-D-356 netlist files.
+Successful conversions write conversion-manifest.json beside the output with
+the source format, artifact status, and post-conversion audit findings.
 
 Requirements:
   - kicad-cli must be installed and available in PATH (KiCad 8+ / 10.0+)
@@ -41,6 +43,8 @@ import os
 import shutil
 import subprocess
 import argparse
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -505,6 +509,7 @@ def audit_conversion(kicad_pcb: str, source_fmt: str) -> list:
 def print_audit_report(findings: list):
     """Print the post-conversion audit report."""
     print()
+
     print("-" * 60)
     print("Post-Conversion Audit Report")
     print("-" * 60)
@@ -534,6 +539,32 @@ def print_audit_report(findings: list):
             print(f"    [{f['category']}] {f['message']}")
 
     print()
+
+
+def write_conversion_manifest(output_dir: str, input_file: str, source_format: str,
+                              converted_file: str, export_results=None,
+                              audit_findings=None) -> str:
+    """Write a machine-readable record of conversion and verification results."""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    artifacts = {}
+    for name, ok in (export_results or {}).items():
+        artifacts[name] = {
+            "requested": True,
+            "success": bool(ok),
+        }
+    manifest = {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "input_file": str(Path(input_file).resolve()),
+        "source_format": source_format,
+        "converted_file": str(Path(converted_file).resolve()) if converted_file else None,
+        "artifacts": artifacts,
+        "audit_findings": audit_findings or [],
+    }
+    manifest_path = output_path / "conversion-manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return str(manifest_path)
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────
@@ -636,8 +667,10 @@ def main():
         schematic_path = convert_schematic_to_kicad(input_file, output_dir, fmt, kicad_cli)
         if not schematic_path:
             sys.exit(1)
+        manifest_path = write_conversion_manifest(output_dir, input_file, fmt, schematic_path)
         print("[DONE] Schematic conversion complete!")
         print(f"  KiCad schematic: {schematic_path}")
+        print(f"  Manifest: {manifest_path}")
         return
 
     if fmt == "pads":
@@ -705,6 +738,7 @@ def main():
 
     # Step 4: Export (if requested)
     export_any = args.export_all or args.export_gerber or args.export_drill or args.export_pos or args.export_netlist
+    export_results = {}
     if export_any:
         os.makedirs(output_dir, exist_ok=True)
         print(f"[4] Exporting manufacturing files")
@@ -726,12 +760,22 @@ def main():
         )
         failed_exports = [name for name, ok in export_results.items() if not ok]
         if failed_exports:
+            manifest_path = write_conversion_manifest(
+                output_dir,
+                input_file,
+                fmt,
+                kicad_pcb_path,
+                export_results=export_results,
+                audit_findings=[],
+            )
             print(f"[FAILED] Export failed for: {', '.join(failed_exports)}")
+            print(f"  Manifest: {manifest_path}")
             sys.exit(1)
     else:
         print(f"[4] Export: skipped (no --export flags)")
 
     # Step 5: Post-conversion audit
+    findings = []
     if fmt != "kicad":
         print(f"[5] Post-Conversion Audit")
         findings = audit_conversion(kicad_pcb_path, fmt)
@@ -739,10 +783,20 @@ def main():
     else:
         print(f"[5] Audit: skipped (native KiCad file)")
 
+    manifest_path = write_conversion_manifest(
+        output_dir,
+        input_file,
+        fmt,
+        kicad_pcb_path,
+        export_results=export_results,
+        audit_findings=findings,
+    )
+
     print()
     print("=" * 60)
     print(f"[DONE] Conversion complete!")
     print(f"  KiCad PCB:  {kicad_pcb_path}")
+    print(f"  Manifest:   {manifest_path}")
     if export_any:
         print(f"  Output dir: {output_dir}")
         print(f"  Contains:   ", end="")

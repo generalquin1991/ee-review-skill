@@ -10,6 +10,16 @@ agent_created: true
 
 Perform comprehensive, professional, and in-depth review of hardware design artifacts including schematics (PDF or netlist), PCB layout files, and BOM documents. Produce a structured HTML report with hierarchical review dimensions, S/A/B/C/D grading, risk-level marking, and actionable recommendations.
 
+## Skill Validation Preflight
+
+When validating or packaging this skill, run the bundled wrapper before the system validator:
+
+    python3 scripts/validate_skill.py
+
+The wrapper checks that PyYAML is installed before invoking Codex's quick_validate.py. If it is missing, validation stops with an install command and a non-zero exit code; do not report the skill as validated. Install the validation-only dependency with either python3 -m pip install PyYAML or python3 -m pip install -r requirements-validation.txt.
+
+PyYAML is required for skill structure validation only. Normal EE design reviews use the standard-library scripts in this folder and do not require PyYAML.
+
 ## When to Use This Skill
 
 Activate this skill when the user requests any of the following:
@@ -64,6 +74,14 @@ This script auto-detects the format and uses `kicad-cli pcb import` for board fi
 If kicad-cli is not available or conversion fails, ask the user to export manufacturing files from their EDA tool. Refer to `references/file-preparation-guide.md` for tool-specific export instructions (Altium Designer, PADS, Eagle, Cadstar, OrCAD/Allegro).
 
 **Special note for PADS users:** PADS binary `.pcb` files cannot be directly converted. The user must export to ASCII `.asc` format first: `File -> Export -> ASCII` (select all sections). This is the only manual step required.
+
+For boards where the KiCad importer drops PADS routing or board graphics, run the full converter after the initial import:
+
+```bash
+python3 scripts/pads_full_converter.py board.asc imported.kicad_pcb reviewed.kicad_pcb
+```
+
+Both PADS converters fit coordinates against matching reference designators and stop when the maximum fit error exceeds `0.01 mm`. If the source/import alignment has been independently verified, the limit can be changed explicitly with `--max-transform-error <mm>`; record that decision in the review notes.
 
 After conversion, use the `.kicad_pcb` and exported files for the review in subsequent steps.
 
@@ -257,11 +275,14 @@ Always reference `references/standards-reference.md` during review to:
 ## Resources
 
 ### scripts/
+- validate_skill.py - Preflight wrapper for the Codex structural validator. Checks for PyYAML and the local quick_validate.py before running validation, with actionable install guidance when a dependency is missing.
 - `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn`/KiCad `.net`). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
 - `convert_layout.py` - Auto-detects PCB layout file format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb, KiCad .kicad_pcb) and converts to KiCad format using kicad-cli. Optionally exports Gerber, drill, pick-place, and netlist files. Includes post-conversion audit that checks for routing trace loss, solder mask/paste settings, via tenting, silk screen completeness, board outline, and copper zones. Requires KiCad 8+ installed.
-- `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions. Required because kicad-cli does not import PADS routing traces. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb>`
-- `pads_full_converter.py` - Comprehensive PADS→KiCad converter that extends route injection with: (1) board outline injection from PADS BOARD items → Edge.Cuts, (2) silk screen text from *TEXT* → F.SilkS, (3) documentation lines from *LINES* → F.Fab, (4) copper zone creation on B.Cu using board outline + thermal connection analysis, (5) per-pad solder_paste_margin and solder_mask_margin injection from PARTDECAL pad stacks. Parses PARTDECAL pad stack levels (-2=paste, -1=mask, 0=copper) and computes margins using PADS ARPTOM global annular ring. Usage: `python3 pads_full_converter.py <input.asc> <input.kicad_pcb> <output.kicad_pcb>`
+- `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.
+- `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions, then enforces the fit-error threshold. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
+- `pads_full_converter.py` - Comprehensive PADS→KiCad converter that extends route injection with: (1) board outline injection from PADS BOARD items → Edge.Cuts, (2) silk screen text from *TEXT* → F.SilkS, (3) documentation lines from *LINES* → F.Fab, (4) copper zone creation on B.Cu using board outline + thermal connection analysis, (5) per-pad solder_paste_margin and solder_mask_margin injection from PARTDECAL pad stacks. Parses PARTDECAL pad stack levels (-2=paste, -1=mask, 0=copper) and computes margins using PADS ARPTOM global annular ring. Usage: `python3 pads_full_converter.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
+- `conversion-manifest.json` - Written beside converted outputs. Records source format, absolute input/output paths, requested export status, and post-conversion audit findings so a review can distinguish a successful conversion from a partially exported one.
 - `pads_export_all.bas` - VBScript for PADS Layout that exports ASCII, IPC-356 netlist, BOM, placement, layer stackup, and design rules in one run. Run inside PADS via `Tools -> Basic Scripts` or from command line with `layout.exe /runscript`.
 - `pads_export.bat` - Windows batch file that launches PADS Layout with a PCB file and auto-runs the export script. Designed for VM automation.
 

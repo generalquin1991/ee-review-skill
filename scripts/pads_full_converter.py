@@ -12,44 +12,30 @@ Extends the route injector with:
 Shares the route-injection coordinate transformation model used by pads_route_injector.py.
 
 Usage:
-    python3 pads_full_converter.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb>
+    python3 pads_full_converter.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]
 """
 
+import argparse
 import re
 import sys
 import math
 from typing import List, Dict, Tuple, Optional
 
+from pads_common import (
+    DEFAULT_MAX_TRANSFORM_ERROR_MM,
+    PadsPart,
+    PadsRoutePoint,
+    PadsViaDef,
+    parse_pads_header,
+    parse_pads_parts,
+    parse_pads_routes,
+    parse_pads_vias,
+    read_pads_ascii,
+    transform_error_allowed,
+)
+
 
 # ─── PADS ASCII PARSER ──────────────────────────────────────────────────────────
-
-class PadsPart:
-    def __init__(self, refdes, x, y, ori, ptype, alt=0):
-        self.refdes = refdes
-        self.x = x
-        self.y = y
-        self.ori = ori
-        self.ptype = ptype
-        self.alt = alt  # decal alternate index
-
-
-class PadsRoutePoint:
-    def __init__(self, x, y, layer, width, flags, net, extra):
-        self.x = x
-        self.y = y
-        self.layer = layer
-        self.width = width
-        self.flags = flags
-        self.net = net
-        self.extra = extra
-
-
-class PadsViaDef:
-    def __init__(self, name, drill, pads):
-        self.name = name
-        self.drill = drill
-        self.pads = pads  # list of (level, size, shape)
-
 
 class PadsTextItem:
     def __init__(self, x, y, ori, level, height, width, mirrored, hjust, vjust, text):
@@ -117,42 +103,25 @@ class PadsAsciiParser:
         self.arptom = 114300  # global pad-to-mask annular ring
 
     def parse(self):
-        with open(self.filepath, 'r', encoding='cp936', errors='replace') as f:
-            lines = f.readlines()
+        lines, self.encoding = read_pads_ascii(self.filepath)
+        header = parse_pads_header(lines, {"arptom": self.arptom})
+        self.units = int(header["units"])
+        self.max_layer = int(header["max_layer"])
+        self.arptom = header["arptom"]
         self._parse_header(lines)
         self._parse_text(lines)
         self._parse_lines(lines)
-        self._parse_vias(lines)
+        self.via_defs = parse_pads_vias(lines, PadsViaDef)
         self._parse_partdecals(lines)
         self._parse_parttypes(lines)
-        self._parse_parts(lines)
-        self._parse_routes(lines)
+        self.parts = parse_pads_parts(lines, PadsPart)
+        self.routes, self.route_nets = parse_pads_routes(lines, PadsRoutePoint, self.thermal_points)
 
     def _parse_header(self, lines):
-        for line in lines:
-            s = line.strip()
-            if s.startswith('UNITS') and 'MAXIMUMLAYER' not in s:
-                p = s.split()
-                if len(p) >= 2:
-                    try:
-                        self.units = int(p[1])
-                    except ValueError:
-                        pass
-            elif s.startswith('MAXIMUMLAYER'):
-                p = s.split()
-                if len(p) >= 2:
-                    try:
-                        self.max_layer = int(p[1])
-                    except ValueError:
-                        pass
-                break
-            elif s.startswith('ARPTOM'):
-                p = s.split()
-                if len(p) >= 2:
-                    try:
-                        self.arptom = float(p[1])
-                    except ValueError:
-                        pass
+        header = parse_pads_header(lines, {"arptom": self.arptom})
+        self.units = int(header["units"])
+        self.max_layer = int(header["max_layer"])
+        self.arptom = header["arptom"]
 
     def _parse_text(self, lines):
         in_text = False
@@ -267,36 +236,7 @@ class PadsAsciiParser:
             self.lines_items.append(current_item)
 
     def _parse_vias(self, lines):
-        in_via = False
-        current_via = None
-        for line in lines:
-            s = line.strip()
-            if s.startswith('*VIA*'):
-                in_via = True
-                continue
-            if in_via:
-                if s.startswith('*') and not s.startswith('*REMARK*'):
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                p = s.split()
-                if len(p) >= 2:
-                    if not p[0].startswith('-') and not p[0].isdigit():
-                        try:
-                            name = p[0]
-                            drill = float(p[1])
-                            current_via = PadsViaDef(name, drill, [])
-                            self.via_defs[name] = current_via
-                        except (ValueError, IndexError):
-                            pass
-                    elif current_via is not None:
-                        try:
-                            level = int(p[0])
-                            size = float(p[1])
-                            shape = p[2] if len(p) > 2 else 'R'
-                            current_via.pads.append((level, size, shape))
-                        except (ValueError, IndexError):
-                            pass
+        self.via_defs = parse_pads_vias(lines, PadsViaDef)
 
     def _parse_partdecals(self, lines):
         in_decal = False
@@ -383,95 +323,12 @@ class PadsAsciiParser:
                     self.part_types[name] = decals
 
     def _parse_parts(self, lines):
-        in_part = False
-        for line in lines:
-            s = line.strip()
-            if s.startswith('*PART*'):
-                in_part = True
-                continue
-            if in_part:
-                if s.startswith('*') and not s.startswith('*REMARK*'):
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                if s.startswith(('VALUE', 'Regular', 'Ref.Des.', 'Value', 'Comment', 'NONE')):
-                    continue
-                p = s.split()
-                if len(p) >= 5 and re.match(r'^[A-Z]+\d+', p[0]):
-                    try:
-                        refdes = p[0]
-                        ptype = p[1]
-                        x = float(p[2])
-                        y = float(p[3])
-                        ori = float(p[4])
-                        # ALT is the 6th field (index 5), 0-indexed from p[5]
-                        # Format: REFNM PTYPENM X Y ORI GLUE MIRROR ALT ...
-                        # p = [REFNM, PTYPENM, X, Y, ORI, GLUE, MIRROR, ALT, ...]
-                        alt = 0
-                        if len(p) >= 8:
-                            try:
-                                alt = int(p[7])
-                            except ValueError:
-                                pass
-                        self.parts[refdes] = PadsPart(refdes, x, y, ori, ptype, alt)
-                    except (ValueError, IndexError):
-                        pass
+        self.parts = parse_pads_parts(lines, PadsPart)
 
     def _parse_routes(self, lines):
-        in_route = False
-        current_net = ""
-        current_connection = None
-
-        for line in lines:
-            s = line.strip()
-            if s == '*ROUTE*':
-                in_route = True
-                continue
-            if in_route:
-                if s.startswith('*') and not s.startswith('*SIGNAL*') and not s.startswith('*REMARK*'):
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                if s.startswith('*SIGNAL*'):
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-                    sig_parts = s.split()
-                    current_net = sig_parts[1] if len(sig_parts) > 1 else "?"
-                    continue
-
-                p = s.split()
-                try:
-                    x = float(p[0])
-                    y = float(p[1])
-                    layer = int(p[2])
-                    width = float(p[3])
-                    flags = int(p[4])
-                    extra = p[5:] if len(p) > 5 else []
-
-                    # Check for THERMAL
-                    is_thermal = 'THERMAL' in ' '.join(extra)
-                    if is_thermal and layer >= 64:
-                        self.thermal_points.append((x, y, layer, current_net))
-
-                    point = PadsRoutePoint(x, y, layer, width, flags, current_net, extra)
-                    if current_connection is None:
-                        current_connection = []
-                    current_connection.append(point)
-                except (ValueError, IndexError):
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-
-        if current_connection is not None:
-            self.routes.append(current_connection)
-            self.route_nets.append(current_net)
+        self.routes, self.route_nets = parse_pads_routes(
+            lines, PadsRoutePoint, self.thermal_points
+        )
 
     def get_decal_for_part(self, refdes):
         """Get the decal name for a part using its ALT field and PARTTYPE decal list."""
@@ -1229,14 +1086,24 @@ def inject_pad_margins(kicad_content, parser, kicad_fps, transform):
 
 # ─── MAIN ───────────────────────────────────────────────────────────────────────
 
-def main():
-    if len(sys.argv) < 4:
-        print("Usage: pads_full_converter.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb>")
-        sys.exit(1)
+def main(argv=None):
+    cli = argparse.ArgumentParser(
+        description="Convert PADS ASCII layout data into a KiCad PCB."
+    )
+    cli.add_argument("pads_file", help="PADS ASCII .asc file")
+    cli.add_argument("kicad_input", help="KiCad PCB produced by the importer")
+    cli.add_argument("kicad_output", help="Output PCB path")
+    cli.add_argument(
+        "--max-transform-error",
+        type=float,
+        default=DEFAULT_MAX_TRANSFORM_ERROR_MM,
+        help=f"Maximum allowed footprint-fit error in mm (default: {DEFAULT_MAX_TRANSFORM_ERROR_MM})",
+    )
+    args = cli.parse_args(argv)
 
-    pads_file = sys.argv[1]
-    kicad_input = sys.argv[2]
-    kicad_output = sys.argv[3]
+    pads_file = args.pads_file
+    kicad_input = args.kicad_input
+    kicad_output = args.kicad_output
 
     print("=== PADS Full Converter ===")
     print(f"  PADS ASCII:  {pads_file}")
@@ -1247,6 +1114,7 @@ def main():
     print("\n--- Step 1: Parsing PADS ASCII ---")
     parser = PadsAsciiParser(pads_file)
     parser.parse()
+    print(f"  Source encoding: {parser.encoding}")
     print(f"  Parts: {len(parser.parts)}")
     print(f"  Via defs: {len(parser.via_defs)}")
     print(f"  Max layers: {parser.max_layer}")
@@ -1282,6 +1150,13 @@ def main():
         print("  ERROR: Could not compute transformation!")
         sys.exit(1)
     transform_error = getattr(compute_transform, "last_error", None)
+    if not transform_error_allowed(transform_error, args.max_transform_error):
+        print(
+            f"  ERROR: Transformation max error {transform_error:.8f} mm exceeds "
+            f"the allowed {args.max_transform_error:.8f} mm."
+        )
+        print("         Correct the source/import alignment or raise --max-transform-error explicitly.")
+        sys.exit(2)
 
     arptom_mm = abs(transform[0]) * parser.arptom
     print(f"  ARPTOM = {parser.arptom} basic units = {arptom_mm:.6f} mm")

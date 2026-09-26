@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PADS ASCII Route Extractor & KiCad Segment Injector (v2)
+PADS ASCII Route Extractor & KiCad Segment Injector
 
 Parses the *ROUTE* section of a PADS PowerPCB ASCII file, extracts all routing
 traces (segments) and via locations, converts them to KiCad coordinate space by
@@ -19,42 +19,27 @@ Key discoveries:
   - Via definitions from *VIA* section provide drill and pad sizes.
 
 Usage:
-    python3 pads_route_injector.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb>
+    python3 pads_route_injector.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]
 """
 
+import argparse
 import re
 import sys
 import math
 from typing import List, Dict, Tuple, Optional
 
-
-# ─── PADS ASCII PARSER ──────────────────────────────────────────────────────────
-
-class PadsPart:
-    def __init__(self, refdes: str, x: float, y: float, ori: float, ptype: str):
-        self.refdes = refdes
-        self.x = x          # PADS basic units (2/3 nm each)
-        self.y = y
-        self.ori = ori      # degrees
-        self.ptype = ptype  # part type name
-
-
-class PadsRoutePoint:
-    def __init__(self, x: float, y: float, layer: int, width: float, flags: int, net: str, extra: list):
-        self.x = x
-        self.y = y
-        self.layer = layer
-        self.width = width
-        self.flags = flags
-        self.net = net
-        self.extra = extra  # additional fields after FLAGS
-
-
-class PadsViaDef:
-    def __init__(self, name: str, drill: float, pads: list):
-        self.name = name
-        self.drill = drill  # PADS basic units
-        self.pads = pads    # list of (level, size, shape)
+from pads_common import (
+    DEFAULT_MAX_TRANSFORM_ERROR_MM,
+    PadsPart,
+    PadsRoutePoint,
+    PadsViaDef,
+    parse_pads_header,
+    parse_pads_parts,
+    parse_pads_routes,
+    parse_pads_vias,
+    read_pads_ascii,
+    transform_error_allowed,
+)
 
 
 class PadsAsciiParser:
@@ -68,134 +53,27 @@ class PadsAsciiParser:
         self.units = 1  # 0=Mils, 1=Metric, 2=Inches
 
     def parse(self):
-        with open(self.filepath, 'r', encoding='cp936', errors='replace') as f:
-            lines = f.readlines()
-        self._parse_header(lines)
-        self._parse_vias(lines)
-        self._parse_parts(lines)
-        self._parse_routes(lines)
+        lines, self.encoding = read_pads_ascii(self.filepath)
+        header = parse_pads_header(lines)
+        self.units = int(header["units"])
+        self.max_layer = int(header["max_layer"])
+        self.via_defs = parse_pads_vias(lines, PadsViaDef)
+        self.parts = parse_pads_parts(lines, PadsPart)
+        self.routes, self.route_nets = parse_pads_routes(lines, PadsRoutePoint)
 
     def _parse_header(self, lines):
-        for line in lines:
-            s = line.strip()
-            if s.startswith('UNITS') and 'MAXIMUMLAYER' not in s:
-                p = s.split()
-                if len(p) >= 2:
-                    try: self.units = int(p[1])
-                    except ValueError: pass
-            elif s.startswith('MAXIMUMLAYER'):
-                p = s.split()
-                if len(p) >= 2:
-                    try: self.max_layer = int(p[1])
-                    except ValueError: pass
-                break
+        header = parse_pads_header(lines)
+        self.units = int(header["units"])
+        self.max_layer = int(header["max_layer"])
 
     def _parse_vias(self, lines):
-        in_via = False
-        current_via = None
-        for line in lines:
-            s = line.strip()
-            if s.startswith('*VIA*'):
-                in_via = True
-                continue
-            if in_via:
-                if s.startswith('*') and not s.startswith('*REMARK*'):
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                p = s.split()
-                if len(p) >= 2:
-                    # Via definition line: NAME DRILL NUMSTACKS
-                    if not p[0].startswith('-') and not p[0].isdigit():
-                        try:
-                            name = p[0]
-                            drill = float(p[1])
-                            current_via = PadsViaDef(name, drill, [])
-                            self.via_defs[name] = current_via
-                        except (ValueError, IndexError):
-                            pass
-                    elif current_via is not None:
-                        # Stack line: LEVEL SIZE SHAPE
-                        try:
-                            level = int(p[0])
-                            size = float(p[1])
-                            shape = p[2] if len(p) > 2 else 'R'
-                            current_via.pads.append((level, size, shape))
-                        except (ValueError, IndexError):
-                            pass
+        self.via_defs = parse_pads_vias(lines, PadsViaDef)
 
     def _parse_parts(self, lines):
-        in_part = False
-        for line in lines:
-            s = line.strip()
-            if s.startswith('*PART*'):
-                in_part = True
-                continue
-            if in_part:
-                if s.startswith('*') and not s.startswith('*REMARK*'):
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                if s.startswith(('VALUE', 'Regular', 'Ref.Des.', 'Value', 'Comment', 'NONE')):
-                    continue
-                p = s.split()
-                if len(p) >= 5 and re.match(r'^[A-Z]+\d+', p[0]):
-                    try:
-                        self.parts[p[0]] = PadsPart(p[0], float(p[2]), float(p[3]), float(p[4]), p[1])
-                    except (ValueError, IndexError):
-                        pass
+        self.parts = parse_pads_parts(lines, PadsPart)
 
     def _parse_routes(self, lines):
-        in_route = False
-        current_net = ""
-        current_connection = None
-
-        for line in lines:
-            s = line.strip()
-            if s == '*ROUTE*':
-                in_route = True
-                continue
-            if in_route:
-                if s.startswith('*') and not s.startswith('*SIGNAL*') and not s.startswith('*REMARK*'):
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-                    break
-                if not s or s.startswith('*REMARK*'):
-                    continue
-                if s.startswith('*SIGNAL*'):
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-                    sig_parts = s.split()
-                    current_net = sig_parts[1] if len(sig_parts) > 1 else "?"
-                    continue
-
-                p = s.split()
-                # Try to parse as coordinate line: X Y LAYER WIDTH FLAGS [extra...]
-                try:
-                    x = float(p[0])
-                    y = float(p[1])
-                    layer = int(p[2])
-                    width = float(p[3])
-                    flags = int(p[4])
-                    extra = p[5:] if len(p) > 5 else []
-                    point = PadsRoutePoint(x, y, layer, width, flags, current_net, extra)
-                    if current_connection is None:
-                        current_connection = []
-                    current_connection.append(point)
-                except (ValueError, IndexError):
-                    # Pin-pair line — start new connection
-                    if current_connection is not None:
-                        self.routes.append(current_connection)
-                        self.route_nets.append(current_net)
-                        current_connection = None
-
-        if current_connection is not None:
-            self.routes.append(current_connection)
-            self.route_nets.append(current_net)
+        self.routes, self.route_nets = parse_pads_routes(lines, PadsRoutePoint)
 
 
 # ─── KICAD PCB PARSER ───────────────────────────────────────────────────────────
@@ -582,11 +460,11 @@ def generate_kicad_segments(routes: List[List[PadsRoutePoint]],
     # Build output text
     segments_text = "\n"
     if segments:
-        segments_text += "\t# PADS routing traces (injected by pads_route_injector.py v2)\n"
+        segments_text += "\t# PADS routing traces (injected by pads_route_injector.py)\n"
         segments_text += "\n".join(segments)
         segments_text += "\n"
     if vias:
-        segments_text += "\n\t# PADS vias (injected by pads_route_injector.py v2)\n"
+        segments_text += "\n\t# PADS vias (injected by pads_route_injector.py)\n"
         segments_text += "\n".join(vias)
         segments_text += "\n"
 
@@ -595,16 +473,26 @@ def generate_kicad_segments(routes: List[List[PadsRoutePoint]],
 
 # ─── MAIN ───────────────────────────────────────────────────────────────────────
 
-def main():
-    if len(sys.argv) < 4:
-        print("Usage: pads_route_injector.py <pads_ascii.asc> <input.kicad_pcb> <output.kicad_pcb>")
-        sys.exit(1)
+def main(argv=None):
+    cli = argparse.ArgumentParser(
+        description="Inject PADS ASCII routes and vias into a KiCad PCB."
+    )
+    cli.add_argument("pads_file", help="PADS ASCII .asc file")
+    cli.add_argument("kicad_input", help="KiCad PCB produced by the importer")
+    cli.add_argument("kicad_output", help="Output PCB path")
+    cli.add_argument(
+        "--max-transform-error",
+        type=float,
+        default=DEFAULT_MAX_TRANSFORM_ERROR_MM,
+        help=f"Maximum allowed footprint-fit error in mm (default: {DEFAULT_MAX_TRANSFORM_ERROR_MM})",
+    )
+    args = cli.parse_args(argv)
 
-    pads_file = sys.argv[1]
-    kicad_input = sys.argv[2]
-    kicad_output = sys.argv[3]
+    pads_file = args.pads_file
+    kicad_input = args.kicad_input
+    kicad_output = args.kicad_output
 
-    print("=== PADS Route Injector v2 ===")
+    print("=== PADS Route Injector ===")
     print(f"  PADS ASCII:  {pads_file}")
     print(f"  KiCad input: {kicad_input}")
     print(f"  KiCad output: {kicad_output}")
@@ -613,6 +501,7 @@ def main():
     print("\n--- Step 1: Parsing PADS ASCII ---")
     parser = PadsAsciiParser(pads_file)
     parser.parse()
+    print(f"  Source encoding: {parser.encoding}")
     print(f"  Parts: {len(parser.parts)}")
     print(f"  Via defs: {len(parser.via_defs)}")
     for name, vd in parser.via_defs.items():
@@ -651,6 +540,13 @@ def main():
         print("  ERROR: Could not compute transformation!")
         sys.exit(1)
     transform_error = getattr(compute_transform, "last_error", None)
+    if not transform_error_allowed(transform_error, args.max_transform_error):
+        print(
+            f"  ERROR: Transformation max error {transform_error:.8f} mm exceeds "
+            f"the allowed {args.max_transform_error:.8f} mm."
+        )
+        print("         Correct the source/import alignment or raise --max-transform-error explicitly.")
+        sys.exit(2)
 
     # Step 4: Generate segments
     print("\n--- Step 4: Generating KiCad segments ---")

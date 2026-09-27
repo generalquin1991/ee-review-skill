@@ -242,7 +242,8 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("EMC and safety applicability (private)", matrix)
         schematic = (ROOT / "references" / "schematic-review.md").read_text(encoding="utf-8")
         self.assertIn("Resistor is E96", schematic)
-        self.assertIn("One finding and one slide", schematic)
+        self.assertIn("Schematic value versus ordered part", schematic)
+        self.assertIn("footprint-library assignment error", schematic)
         self.assertIn("2.2` is not `2.21", schematic)
         self.assertIn("Class II DC bias", schematic)
         self.assertIn("MCU and SoC minimum system", schematic)
@@ -554,7 +555,11 @@ class DeckCommandTests(unittest.TestCase):
                         "eyebrow": "BOM · resistors",
                         "subtitle": "Several resistors are outside the E96 series.",
                         "severity": "warning",
-                        "body": "2.2 k\u03a9 is used by R1 and R2. " * 40,
+                        "body": "Replace each value with the recommended E96 resistance.",
+                        "table": {
+                            "columns": ["Value", "References", "Recommended"],
+                            "rows": [["2.2 kΩ", "R41, R39", "2.21 kΩ"], ["4.7 kΩ", "R12", "4.75 kΩ"]],
+                        },
                         "single_page": True,
                     }
                 ],
@@ -566,7 +571,11 @@ class DeckCommandTests(unittest.TestCase):
 
             with zipfile.ZipFile(output) as archive:
                 names = [name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
+                finding = archive.read("ppt/slides/slide19.xml").decode("utf-8")
             self.assertEqual(len(names), 2)
+            self.assertIn("<a:tbl>", finding)
+            self.assertIn("Recommended", finding)
+            self.assertIn("2.21 kΩ", finding)
 
     def test_symbol_crop_box_uses_sheet_coordinates(self):
         import crop_schematic

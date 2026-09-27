@@ -272,8 +272,90 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
         media_name = f"ppt/media/finding-{index + 1}-{slot}{image_extension(path)}"
         files[media_name] = blob
         rels = retarget(rels, embed, "../" + media_name.split("/", 1)[1])
+    table = validate_table(finding.get("table"))
+    if table:
+        xml = add_table(xml, table[0], table[1])
     files[slide_xml_name] = xml.encode("utf-8")
     files[rels_name] = rels.encode("utf-8")
+
+
+def validate_table(table):
+    if not table:
+        return None
+    columns = [str(column).strip() for column in table.get("columns") or []]
+    rows = table.get("rows") or []
+    if len(columns) < 2 or not rows:
+        raise SystemExit("a table needs at least two columns and one row")
+    for row in rows:
+        if len(row) != len(columns):
+            raise SystemExit("every table row must have one cell per column")
+    return columns, [[str(cell).strip() for cell in row] for row in rows]
+
+
+def _cell(text, header):
+    size = "1200" if header else "1100"
+    weight = ' b="1"' if header else ""
+    ink = "FFFFFF" if header else "1A1A1A"
+    fill = "1A1A1A" if header else "F7F7F7"
+    safe = escape_xml(text)
+    return (
+        "<a:tc><a:txBody><a:bodyPr anchor=\"ctr\" lIns=\"60000\" rIns=\"60000\" tIns=\"30000\" bIns=\"30000\"/>"
+        "<a:lstStyle/><a:p><a:r>"
+        f'<a:rPr lang="en-US" sz="{size}"{weight} dirty="0">'
+        f'<a:solidFill><a:srgbClr val="{ink}"/></a:solidFill>'
+        '<a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/>'
+        f"</a:rPr><a:t>{safe}</a:t></a:r></a:p></a:txBody>"
+        f'<a:tcPr><a:solidFill><a:srgbClr val="{fill}"/></a:solidFill></a:tcPr></a:tc>'
+    )
+
+
+def add_table(xml, columns, rows):
+    marker = 'name="Body"'
+    index = xml.find(marker)
+    if index < 0:
+        raise SystemExit("template shape Body is missing")
+    start = xml.rfind("<p:sp", 0, index)
+    end = xml.find("</p:sp>", index) + len("</p:sp>")
+    block = xml[start:end]
+    off = re.search(r'<a:off x="(-?\d+)" y="(-?\d+)"/>', block)
+    ext = re.search(r'<a:ext cx="(\d+)" cy="(\d+)"/>', block)
+    if not off or not ext:
+        raise SystemExit("template shape Body has no frame")
+    x, y = int(off.group(1)), int(off.group(2))
+    cx, cy = int(ext.group(1)), int(ext.group(2))
+    verdict_cy = min(820000, cy // 4)
+    gap = 80000
+    table_y = y + verdict_cy + gap
+    table_cy = max(1, cy - verdict_cy - gap)
+    block = re.sub(
+        r'<a:ext cx="\d+" cy="\d+"/>',
+        f'<a:ext cx="{cx}" cy="{verdict_cy}"/>',
+        block,
+        count=1,
+    )
+    xml = xml[:start] + block + xml[end:]
+    row_count = len(rows) + 1
+    row_h = max(1, table_cy // row_count)
+    col_w = max(1, cx // len(columns))
+    grid = "".join(f'<a:gridCol w="{col_w}"/>' for _ in columns)
+    header = "".join(_cell(column, True) for column in columns)
+    body_rows = []
+    for row in rows:
+        cells = "".join(_cell(cell, False) for cell in row)
+        body_rows.append(f'<a:tr h="{row_h}">{cells}</a:tr>')
+    table = (
+        '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="40" name="Table"/>'
+        '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/>'
+        "</p:nvGraphicFramePr>"
+        f'<p:xfrm><a:off x="{x}" y="{table_y}"/><a:ext cx="{cx}" cy="{table_cy}"/></p:xfrm>'
+        '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>'
+        f"<a:tblPr/><a:tblGrid>{grid}</a:tblGrid>"
+        f'<a:tr h="{row_h}">{header}</a:tr>'
+        f'{"".join(body_rows)}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>'
+    )
+    tree = "</p:spTree>"
+    at = xml.rfind(tree)
+    return xml[:at] + table + xml[at:]
 
 
 def build_deck(data, output):
@@ -310,6 +392,7 @@ def build_deck(data, output):
                 "severity": slide["severity"],
                 "body": chunks[page] if page < len(chunks) else chunks[-1],
                 "images": groups[page] if page < len(groups) else [],
+                "table": slide.get("table") if page == 0 else None,
             })
 
     files = load_template()

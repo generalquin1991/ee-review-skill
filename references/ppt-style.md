@@ -40,7 +40,7 @@ One finding per slide, in English, three to five sentences.
 2. Subtitle is the one existing line under the eyebrow. It is the one-sentence summary of the issue, or of the accept. At most 60 characters. That placeholder does not wrap, and there is no second line for the same sentence. A longer subtitle is rejected. Set `severity` to `critical`, `warning`, `info`, or `accept`. The command colors that line only: dark red, dark orange, blue, or green. Do not write the severity word in the sentence.
 3. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
 
-The E96 resistor finding is one slide. Group each off-grid value once with the references that use it, then one verdict. Set `"single_page": true` on that slide so a long list does not continue onto another page.
+The E96 resistor finding is one slide. The body is one verdict sentence. The values are a table with columns Value, References, and Recommended, and `"single_page": true`. A list of several parts, values, or addresses is a table in the same way, not a paragraph of reference designators. Pass it as `"table": {"columns": [...], "rows": [[...]]}`.
 
 Use only these verdict forms:
 

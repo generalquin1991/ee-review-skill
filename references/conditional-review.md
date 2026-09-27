@@ -359,6 +359,7 @@ absent:
 | Component availability (sourcing) | BOM/component list or N/A evidence | confirmed/finding/not applicable/not verifiable | location / primary source |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
 | E96 resistors | resistors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | off-grid references |
+| Schematic value versus ordered part | schematic value and BOM MPN or description both readable | confirmed/finding/not applicable/not verifiable | value or package mismatch |
 | Capacitor voltage and DC bias | capacitors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | capacitor references |
 | MCU/SoC minimum system | an MCU or SoC, else not applicable | confirmed/finding/not applicable/not verifiable | datasheet figure and the pins |
 | IO level | a net joining two logic pins | confirmed/finding/not applicable/not verifiable | driver and receiver |

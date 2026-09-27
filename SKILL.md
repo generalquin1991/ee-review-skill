@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Comprehensive Electronics Engineering design review skill. This skill should be used when reviewing hardware designs including schematics (PDF or netlist format), PCB layout files, and BOM documents. Performs deep, professional, multi-dimensional analysis covering power supply design, signal integrity, protection circuits, electrical safety, EMC/EMI, thermal management, DFM/DFT, low-power design, firmware-hardware co-verification, component lifecycle, component availability (sourcing priority: LCSC/szlcsc first, then Digi-Key/Mouser/Arrow/Avnet), and supply chain risk. Generates a structured HTML report with S/A/B/C/D grading, risk-level marking (Critical/Warning/Info), and actionable recommendations. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
+description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
 agent_created: true
 ---
 
@@ -86,9 +86,13 @@ Both PADS converters fit coordinates against matching reference designators and 
 
 After conversion, use the `.kicad_pcb` and exported files for the review in subsequent steps.
 
-### Step 1.8: Architecture Diagrams (mandatory, before detailed findings)
+### Step 1.8: Architecture diagrams (schematic or netlist only)
 
-Before any checklist findings, produce TWO Graphviz DOT diagrams that fix the design's architecture. These are REQUIRED deliverables for every review (not optional), and the detailed review must cross-check findings against them. See `references/architecture-diagrams.md` for the full style spec and copy-paste DOT templates.
+Produce the two Graphviz diagrams in `references/architecture-diagrams.md` only when the inputs include a schematic (PDF or schematic source) or a netlist. Put the `.dot`, `.png`, and `.svg` files next to those sources, then cross-check later findings against them.
+
+BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a diagram from the parts list. Mark System block diagram and Power tree `not applicable`, evidence `no schematic or netlist in this review`.
+
+When a schematic or netlist is present and either `.dot` file is missing, those coverage rows are `not verifiable` and Power Supply Design gets a warning that names the missing path.
 
 1. **System block diagram** — `<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
 2. **Power tree** — `<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
@@ -100,42 +104,44 @@ dot -Tsvg -o <project>_system_block_diagram.svg <project>_system_block_diagram.d
 # (repeat for <project>_power_tree)
 ```
 
-**Placement:** put the `.dot`/`.png`/`.svg` deliverables in the PROJECT directory — the same folder that holds the source schematic/board files. Never in the WorkBuddy workspace or a separate deep subfolder. The coverage table (Step 2.5) must list the generated file paths as evidence.
+**Placement:** put the `.dot`/`.png`/`.svg` files in the project directory, next to the schematic or netlist. When Step 1.8 required the diagrams, the coverage table cites those paths. When it did not, the rows stay `not applicable`.
 
 ### Step 2: Load Reference Checklists
 
 Based on detected review scope, load the appropriate reference documents:
 
+- **Review contract**: Read `references/review-contract.md` for every review. It defines the six-field checklist row, the `not verifiable` rule, the PDF connectivity ceiling, distributor evidence, when diagrams are required, and the single grade cap.
 - **Schematic review**: Read `references/schematic-review.md` and `references/netlist-verification.md` (the latter is mandatory whenever the input includes a netlist — it governs how connection claims must be proven)
 - **PCB review**: Read `references/pcb-review.md`
 - **BOM review**: Read `references/bom-review.md`
 - **Standards reference**: Read `references/standards-reference.md` (always load for cross-referencing)
-- **Architecture diagrams**: Read `references/architecture-diagrams.md` (mandatory for every review — defines the required Graphviz DOT format/style for the system block diagram and power tree that Step 1.8 produces).
-- **Mandatory and conditional checks**: Read `references/conditional-review.md` for every review. It defines the evidence gate (system block diagram and power tree), all-case ESD review, and feature-triggered checks for batteries, antennas, USB-C, 4G, motors, and CERE/project power baselines.
+- **Architecture diagrams**: Read `references/architecture-diagrams.md` when Step 1.8 applies.
+- **Mandatory and conditional checks**: Read `references/conditional-review.md` for every review. It defines the evidence gate, all-case ESD review, and feature-triggered checks for batteries, antennas, USB-C, 4G, motors, and CERE/project power baselines.
 
-These reference files contain detailed checklists organized by review dimension. Use them systematically - go through each checklist item and evaluate the design against it.
+These reference files contain the checks for the detected scope. Apply each matching row. A row you cannot prove from a file in this review stays `not verifiable`.
 
 ### Step 2.5: Mandatory Coverage Gate
 
 Before writing findings, determine whether the design contains a battery,
 antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
 project-specific CERE requirement. Apply every matching conditional checklist.
-Regardless of detected features, confirm the generated system block diagram and
-power tree (the Graphviz DOT deliverables from Step 1.8), the ESD/external-boundary
-review, the low-power design review (sleep/standby current, leakage, power-gated
-domains, power budget), the EMC/EMI review (radiated/conducted emissions,
-immunity, filtering, grounding, clock/DC-DC noise), the electrical-safety review
-(creepage/clearance, isolation, battery safety), the thermal-management review
-(power-dense/enclosure heat), the DFM/DFT readiness review (test points,
-programming/debug access, ICT), the firmware-hardware co-verification review
-(HW gated by firmware must have the FW sequence specified), the component-
-availability / sourcing review (for each major component verify stock, lifecycle
-status, and lead time, checking LCSC/szlcsc FIRST then Digi-Key/Mouser/Arrow/
-Avnet; flag unavailable/EOL/long-lead or sole-source parts), and the project power
-baseline. Record each item as `confirmed`,
-`finding`, `not applicable` with evidence (for the two diagrams, cite the
-`.dot`/`.png` file paths), or `not verifiable` due to missing evidence. The final
-report must include the coverage table defined in `references/conditional-review.md`.
+Record each checklist row with the six fields in `references/review-contract.md`.
+Regardless of detected features, also record ESD, low-power, EMC, electrical safety,
+thermal, DFM/DFT, firmware-hardware co-verification, component availability, and the
+project power baseline.
+
+Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
+`confirmed` cites the evidence file. If the evidence is missing, status is
+`not verifiable` and the row names the missing file. Do not add a finding or a
+confirmed row whose text is only "checked", "reviewed", or "已检查".
+
+System block diagram and power tree follow Step 1.8: required for a schematic or
+netlist, `not applicable` otherwise. Availability follows the distributor rule in
+the review contract: no fetched page and no dated user export means
+`not verifiable`, not a stock number from memory.
+
+A connectivity finding is Critical only with a `TelNetlist` or `KicadNetlist`
+lookup quoted in the finding. PDF-only connectivity stays at warning.
 
 ### Step 3: Execute Review
 
@@ -158,37 +164,26 @@ For each applicable review dimension, systematically evaluate the design:
 
 ### Step 4: Grade and Score
 
-#### Grading System (S/A/B/C/D)
+Use one policy, from `references/review-contract.md`. `scripts/generate_report.py` applies the same cap when it renders the report.
 
-| Grade | Label | Criteria | Color |
-|-------|-------|---------|-------|
-| S | Excellent | Exceeds industry best practices, zero critical issues, minimal warnings | Purple |
-| A | Good | Meets all standards, zero critical issues, few minor warnings | Green |
-| B | Acceptable | Meets basic requirements, no critical issues, moderate warnings | Blue |
-| C | Needs Improvement | Has critical issues that must be addressed before production | Orange |
-| D | Fail | Serious design defects, fundamental rework required | Red |
+Score each dimension from 100. Deduct 15 per Critical, 5 per Warning, 1 per Info. Floor at 0.
 
-#### Scoring Guidelines
+| Score | Letter | Also required |
+|-------|--------|----------------|
+| 90–100 | S | zero Critical findings in that dimension |
+| 80–89 | A | zero Critical findings in that dimension |
+| 65–79 | B | zero Critical findings in that dimension |
+| 50–64 | C | |
+| < 50 | D | |
 
-- Start at 100 points per dimension.
-- Deduct per finding:
-  - Critical finding: -15 points
-  - Warning finding: -5 points
-  - Info finding: -1 point
-- Map score to grade:
-  - 90-100: S
-  - 80-89: A
-  - 65-79: B
-  - 50-64: C
-  - < 50: D
+After the score map, apply the cap:
 
-#### Overall Grade Calculation
+- Any Critical finding caps that dimension at C. A score below 50 stays D.
+- Any Critical finding anywhere, or any dimension letter D, caps the overall letter at C. A weighted overall score below 50 stays D.
 
-Calculate overall grade as the weighted average across dimensions:
-- Critical dimensions (Power, Signal Integrity, Protection, Safety, Low-Power for battery/portable/power-constrained designs): weight 1.5x
-- Standard dimensions: weight 1.0x
-- If ANY dimension is grade D, overall grade cannot exceed C.
-- If ANY dimension has 3+ critical findings, overall grade cannot exceed C.
+S, A, and B require zero Critical findings in that scope. One Critical is enough.
+
+Weighted overall score: Power, Signal Integrity, Protection, Safety, and Low-Power on a battery, portable, or power-constrained design use weight 1.5. Other dimensions use 1.0. Map the weighted score, then apply the cap.
 
 ### Step 5: Generate Report
 
@@ -367,7 +362,7 @@ respectively) and must be confirmed for every design.
 
 When BOM files are detected, apply these review dimensions (see `references/bom-review.md` for detailed checklists):
 
-1. **Component Availability & Lifecycle** - Lifecycle status, lead time, stock, distributor availability. **Sourcing priority: check LCSC (szlcsc) FIRST, then Digi-Key, Mouser, Arrow, Avnet.** Flag any part that is EOL/NRND, long-lead (>16 wks), out-of-stock at the primary source, or sole-sourced without a documented second source. See `references/bom-review.md` §1 and `references/conditional-review.md` (Component Availability trigger).
+1. **Component Availability & Lifecycle** - Stock, lead time, and lifecycle only from a page fetched in this review or a dated user export. Order when evidence exists: LCSC first, then Digi-Key, Mouser, Arrow, Avnet. No page and no export means `not verifiable`. Do not invent quantities. See `references/bom-review.md` §1 and `references/review-contract.md`.
 2. **Second Source & Alternatives** - Pin-compatible alternatives, parameter-based substitution, standardization.
 3. **Part Number Accuracy** - MPN completeness, description quality, reference designator consistency.
 4. **Parameter Verification** - Electrical parameters, environmental ratings, compliance.
@@ -396,9 +391,9 @@ Always reference `references/standards-reference.md` during review to:
 3. **Be actionable** - Every finding must include a concrete recommendation, not just a description of the problem.
 4. **Cross-reference standards** - When flagging an issue, cite the relevant standard (e.g., "Per IPC-2221 Table 6-1, minimum conductor spacing for 30V is 0.1mm").
 5. **Prioritize by risk** - Always highlight critical findings first in the summary and top risks section.
-6. **Maintain objectivity** - Base findings on technical facts and standards, not opinion. If uncertain, mark as "Warning" with a note to verify.
-7. **Verify, don't assume** - Every connection-related finding MUST be backed by a `TelNetlist` lookup (`references/netlist-verification.md`). Specifically: (a) parse netlists ONLY with `scripts/parse_netlist.py`, never line-prefix regex; (b) for substitute parts, verify the **substitute's** datasheet pinout/features before asserting a defect carried over from the PRD part's assumptions (e.g. internal vs external current sense); (c) derive I2C addresses by tracing each strap pin to its net, never by assuming strap-pin numbers or addresses from memory. If a finding is not backed by a netlist lookup and, where relevant, a datasheet check, it is a hypothesis — mark it `warning`/"verify" or drop it; never ship it as `critical`.
-8. **Close the coverage loop** - Every final report must include the system block diagram and power tree as generated Graphviz DOT deliverables (Step 1.8), ESD, CERE/project baseline, and all triggered feature checks, including explicit not-applicable or not-verifiable statuses. The coverage table must cite the diagram file paths.
+6. **Maintain objectivity** - Base a finding on a file you opened. If the file is missing, mark the row `not verifiable`. If the file shows a risk that does not meet a Fail condition, use `warning`.
+7. **Verify, don't assume** - Every connection-related finding MUST be backed by `TelNetlist` (TARGET `.tel`/`.net`/`.dsn`) or `KicadNetlist` (KiCad XML). Do not parse with line-prefix regex. For substitute parts, verify the substitute's datasheet pinout before asserting a defect carried over from another part. Derive I2C addresses by tracing each strap pin to its net. A PDF or screenshot without a parser lookup cannot be a Critical connectivity finding.
+8. **Close the coverage loop** - The final report includes the coverage table from `references/conditional-review.md`. Diagram file paths are evidence only when Step 1.8 required the diagrams. ESD, CERE/project baseline, and triggered feature checks each have an explicit status. `confirmed` cites a file. Missing evidence is `not verifiable`.
 
 ## Resources
 
@@ -434,13 +429,14 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 | Via tenting | Per-via mask settings | Default tented | May not match PADS | ⚠️ Manual: adjust via layers in KiCad |
 
 ### references/
-- `schematic-review.md` - Detailed schematic review checklist covering 5 dimensions with sub-items, margin tables, and common issues reference.
-- `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Why ad-hoc line-prefix parsing fails (misses continuation lines of long nets), how to use `scripts/parse_netlist.py` for reverse-lookup proof, and the 5 failure modes observed on a real review (false "device unpowered", false "RSENSE missing" from substitute-part assumption, false I2C-address claims from assumed strap pins). Read this before asserting any connection-related finding.
+- `schematic-review.md` - Schematic checks as trigger, evidence, pass, fail, severity, and citation.
+- `review-contract.md` - Six-field row, forbidden "checked" filler, PDF connectivity ceiling, distributor evidence, diagram gate, and the single grade cap.
+- `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Why ad-hoc line-prefix parsing fails (misses continuation lines of long nets), how to use `scripts/parse_netlist.py` or `scripts/parse_kicad_netlist.py` for reverse-lookup proof, and the failure modes observed on a real review. Read this before asserting any connection-related finding. PDF-only connectivity cannot be Critical (Rule 6).
 - `pcb-review.md` - Detailed PCB design review checklist covering 8 dimensions including footprint/land pattern verification, with sub-items, current capacity tables, and routing rules.
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
 - `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
-- `architecture-diagrams.md` - **MANDATORY format spec for the system block diagram and power tree** produced in Step 1.8. Defines the required Graphviz DOT style (layered functional blocks + net-label edges, no internal detail) and gives copy-paste DOT templates for both diagrams plus rendering commands.
+- `architecture-diagrams.md` - Graphviz format for the system block diagram and power tree. Required only when the review includes a schematic or a netlist (Step 1.8).
 - `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures.
 
 ### assets/
@@ -457,16 +453,15 @@ No assets required. The HTML report is generated dynamically by the script.
 1. Classify files - .PcbDoc = Altium PCB, CSV = BOM
 2. Convert PCB: `python3 scripts/convert_layout.py board.PcbDoc --output-dir ./output --export-all`
    - Output: `output/board.kicad_pcb`, `output/gerber/`, `output/drill/`, `output/netlist.net`
-3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/architecture-diagrams.md`
+3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/review-contract.md`. Load `references/architecture-diagrams.md` only if a schematic or netlist is also present.
 4. Parse converted .kicad_pcb - extract layer stackup, tracks, vias, component footprints, copper zones
 5. Parse BOM CSV - extract part numbers, quantities, descriptions
 6. Apply PCB checklist (8 dimensions including footprint verification)
 7. Apply BOM checklist (6 dimensions including package verification)
 8. Cross-reference findings with standards
-9. Score each dimension (S/A/B/C/D)
-10. Calculate overall grade
-11. Assemble JSON, run `generate_report.py`
-12. Present HTML report to user
+9. Score each dimension from 100, then apply the Step 4 cap. One Critical caps that dimension and the overall letter at C.
+10. Assemble JSON, run `generate_report.py`. The script enforces the same cap.
+11. Present HTML report to user
 
 **Example 2: Review schematic PDF + BOM**
 
@@ -476,13 +471,11 @@ No assets required. The HTML report is generated dynamically by the script.
 **Workflow**:
 1. Classify files - PDF = schematic, CSV = BOM
 2. No conversion needed (PDF and CSV are directly reviewable)
-3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/architecture-diagrams.md`
-4. Parse schematic PDF - extract component list, power rails, signal connections, protection circuits
-5. Parse BOM CSV - extract part numbers, quantities, descriptions
-6. Apply schematic checklist (5 dimensions)
-7. Apply BOM checklist (6 dimensions)
-8. Cross-reference findings with standards
-9. Score each dimension (S/A/B/C/D)
-10. Calculate overall grade
-11. Assemble JSON, run `generate_report.py`
-12. Present HTML report to user
+3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, `references/review-contract.md`, and `references/architecture-diagrams.md`
+4. A PDF has no parser lookup. Extract readable values and part numbers. Any connectivity statement is at most a warning. Do not file a Critical for an open pin, a short, or a missing pull-up from the PDF alone.
+5. Parse the BOM only for fields the file contains. Stock and lifecycle stay `not verifiable` unless a fetched page or a dated export is attached.
+6. Apply `references/schematic-review.md` and `references/bom-review.md`. Leave a row `not verifiable` when its evidence file is absent.
+7. Cross-reference findings with the citation you opened, not with the name of a standard.
+8. Score each dimension with the Step 4 cap. One Critical caps that dimension and the overall letter at C.
+9. Assemble JSON, run `generate_report.py`
+10. Present HTML report to user

@@ -215,6 +215,67 @@ class SkillCoverageTests(unittest.TestCase):
             self.assertIn(phrase, matrix)
         self.assertIn("System block diagram", matrix)
         self.assertIn("Power tree", matrix)
+        self.assertIn("references/review-contract.md", skill)
+        self.assertIn("PDF-only", skill)
+        contract = (ROOT / "references" / "review-contract.md").read_text(encoding="utf-8")
+        self.assertIn("no schematic or netlist in this review", contract)
+        self.assertIn("not verifiable", contract)
+        self.assertIn("This skill does not include a distributor client", contract)
+
+
+class GradePolicyTests(unittest.TestCase):
+    def test_critical_finding_caps_dimension_and_overall_at_c(self):
+        data = {
+            "project_name": "Cap",
+            "overall_grade": "A",
+            "overall_summary": "kept",
+            "dimensions": [
+                {
+                    "name": "Power",
+                    "grade": "A",
+                    "score": 85,
+                    "findings": [
+                        {
+                            "severity": "critical",
+                            "title": "short",
+                            "description": "rail shorted",
+                            "location": "U1",
+                            "recommendation": "cut the net",
+                        }
+                    ],
+                }
+            ],
+        }
+        report = generate_report.generate_html_report(data)
+        self.assertEqual(data["dimensions"][0]["grade"], "C")
+        self.assertEqual(data["overall_grade"], "C")
+        self.assertIn("Critical present", report)
+        self.assertIn("overall: A → C", report)
+
+    def test_dimension_d_caps_overall_without_raising_it(self):
+        data = {
+            "overall_grade": "S",
+            "dimensions": [{"name": "Power", "grade": "D", "findings": []}],
+        }
+        generate_report.generate_html_report(data)
+        self.assertEqual(data["overall_grade"], "C")
+        self.assertEqual(data["dimensions"][0]["grade"], "D")
+
+    def test_existing_d_stays_d_when_a_critical_is_present(self):
+        data = {
+            "overall_grade": "D",
+            "dimensions": [
+                {
+                    "name": "Power",
+                    "grade": "D",
+                    "findings": [{"severity": "Critical", "title": "t", "description": "d", "location": "L", "recommendation": "r"}],
+                }
+            ],
+        }
+        generate_report.generate_html_report(data)
+        self.assertEqual(data["overall_grade"], "D")
+        self.assertEqual(data["dimensions"][0]["grade"], "D")
+        self.assertNotIn("grade_policy_notes", data)
 
 
 if __name__ == "__main__":

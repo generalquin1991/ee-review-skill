@@ -573,8 +573,63 @@ def render_coverage(data):
     </div>"""
 
 
+def _cap_grade(grade, ceiling):
+    """Return grade, lowered so it is not better than ceiling. Unknown letters become ceiling."""
+    order = ("D", "C", "B", "A", "S")
+    grade = str(grade or "").strip().upper()
+    ceiling = ceiling.upper()
+    if grade not in order:
+        return ceiling
+    if order.index(grade) > order.index(ceiling):
+        return ceiling
+    return grade
+
+
+def _findings_include_critical(findings):
+    for finding in findings or []:
+        if isinstance(finding, dict) and str(finding.get("severity", "")).lower() == "critical":
+            return True
+    return False
+
+
+def apply_grade_policy(data):
+    """One rule for letters and Critical findings.
+
+    Score still maps 90/80/65/50 to S/A/B/C. After that mapping, any Critical
+    finding caps that dimension at C, and any Critical anywhere or any dimension
+    D caps the overall letter at C. A letter that is already D stays D.
+    """
+    any_critical = False
+    any_d = False
+    notes = []
+    for dim in data.get("dimensions") or []:
+        if not isinstance(dim, dict):
+            continue
+        name = dim.get("name", "dimension")
+        if _findings_include_critical(dim.get("findings")):
+            any_critical = True
+            capped = _cap_grade(dim.get("grade"), "C")
+            previous = str(dim.get("grade", "")).strip().upper()
+            if capped != previous:
+                notes.append(f"{name}: {previous or 'unset'} → C (Critical present)")
+                dim["grade"] = capped
+        if str(dim.get("grade", "")).strip().upper() == "D":
+            any_d = True
+    if any_critical or any_d:
+        previous = str(data.get("overall_grade", "")).strip().upper()
+        capped = _cap_grade(data.get("overall_grade"), "C")
+        if capped != previous:
+            reason = "Critical finding" if any_critical else "dimension grade D"
+            notes.append(f"overall: {previous or 'unset'} → C ({reason})")
+            data["overall_grade"] = capped
+    if notes:
+        data["grade_policy_notes"] = notes
+    return data
+
+
 def generate_html_report(data):
     """Generate the complete HTML report."""
+    apply_grade_policy(data)
     project = _escape(data.get("project_name", "EE Design Review"))
     review_date = _escape(data.get("review_date", datetime.now().strftime("%Y-%m-%d")))
     reviewer = _escape(data.get("reviewer", "EE Review Skill"))
@@ -587,6 +642,11 @@ def generate_html_report(data):
 
     grade_color = GRADE_COLORS.get(raw_overall_grade, "#999")
     grade_label = _escape(GRADE_LABELS.get(raw_overall_grade, ""))
+    policy_notes = data.get("grade_policy_notes") or []
+    policy_html = ""
+    if policy_notes:
+        items = "".join(f"<li>{_escape(note)}</li>" for note in policy_notes)
+        policy_html = f"<ul class=\"grade-policy\">{items}</ul>"
 
     # Charts
     radar_svg = generate_radar_chart_svg(dimensions) if len(dimensions) >= 3 else ""
@@ -923,6 +983,7 @@ def generate_html_report(data):
             <div class="overall-summary-text">
                 <h2>Overall Assessment</h2>
                 <p>{overall_summary}</p>
+                {policy_html}
             </div>
         </div>
 

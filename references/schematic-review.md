@@ -1,245 +1,61 @@
-# Schematic Review Checklist
+# Schematic review checks
 
-## 1. Power Supply Design (电源设计)
+Apply `references/review-contract.md` to every row. The Pass and Fail columns are the verdict. If the Evidence file is not in the review, record `not verifiable` and do not open a finding. Severity in the table is the ceiling after the PDF connectivity rule: a connectivity fail on a PDF with no parser lookup is at most `warning`.
 
-### 1.1 Power Tree & Distribution
-- Verify complete power tree diagram exists (Vmain → regulators → loads).
-- Check all voltage rails have defined source, target, and current budget.
-- Confirm power sequencing requirements are met (especially for FPGA/CPU/SoC).
-- Verify power-on/power-off sequencing order and timing.
-- Check power rail naming consistency across all sheets.
+Citation means a document you opened. Copy the table or section id into the finding. A blank citation on a pass that depends on a datasheet makes the row `not verifiable`.
 
-### 1.2 Decoupling
-- Verify decoupling capacitors on every IC power pin (typically 0.1uF + 10uF).
-- Check bulk capacitance on regulator outputs.
-- Verify decoupling capacitor placement is close to power pins (in PCB layout).
-- Check for missing decoupling on critical signals (e.g., reference voltage pins).
-- Confirm capacitor voltage ratings have adequate margin (>= 1.5x rail voltage).
+## 1. Power
 
-### 1.3 Regulation & Protection
-- Verify regulator output voltage and current ratings match load requirements.
-- Check thermal design current vs. maximum load current.
-- Verify over-current protection (OCP) and over-voltage protection (OVP) circuits.
-- Confirm reverse-polarity protection on external power inputs.
-- Check soft-start circuitry for high-capacitance loads.
-- Verify power-good (PG) signals are connected where required.
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Rail has a source | A named load rail (3V3, 1V8, AVDD, PVDD, VBAT, VBUS) | Power-tree `.dot` plus `net_pins` for that rail, or the PDF sheet if no netlist | Every IC power pin on that rail shares a net with a regulator output, a battery pin, or VBUS | A power pin's net has no source pin | critical with netlist; warning on PDF | Regulator or PMIC pin table |
+| Current headroom | Regulator, load switch, or USB source feeding a known load | BOM current limit and a load list (datasheet typ/max, or measured) | Source Iout ≥ 1.3× the sum of maximum loads on that rail, including the stated peak | Sum of known maximum loads > source Iout | critical when both numbers are cited; otherwise not verifiable | Source DS output-current spec; load DS supply current |
+| Required local capacitor | IC power, PLL, RF, REF, or ADC pin whose datasheet names a capacitor | `net_pins` of that pin, capacitor refs on the same net, values from schematic or BOM | The DS-required value and dielectric are on that net | The named pin's net has no capacitor, or the value contradicts the DS | critical with netlist + DS; warning on PDF | DS power-supply / layout section, not a universal 0.1 µF + 10 µF rule |
+| MLCC voltage bias | Class II ceramic (X5R/X7R/Y5V) on a DC rail | Cap voltage rating and dielectric from BOM; rail voltage from schematic | Rated voltage ≥ 2× the DC bias, or the cap DS DC-bias curve still meets the required C at that bias | Rating < rail voltage, or class II rating < 2× bias and no bias curve is cited | critical if rating < rail; warning if only the 2× rule fails | Capacitor DS DC-bias curve |
+| Inductor saturation | Buck, boost, or SEPIC | L, f, Vin, Vout from schematic; Isat from inductor BOM line | Isat ≥ calculated peak switch current (DC + ripple/2) | Isat < calculated peak | critical when the calculation inputs are all on the schematic or BOM | Inductor DS saturation-current spec |
+| Adjustable setpoint | Regulator with an external feedback divider | Resistor values on the FB node; Vref and the DS equation | Computed Vout is within 2% of the schematic rail name, and < abs-max of every IC on that rail | Computed Vout is outside 2%, or above a cited abs-max | critical only when computed Vout exceeds a cited abs-max; otherwise warning | Regulator DS feedback equation and load IC absolute-maximum table |
+| Reverse input | External DC jack, battery, or unprotected VBUS into silicon | Connector pin net traced to the first series element | A series MOSFET, ideal diode, or diode rated for the input blocks reverse current before any pin whose abs-max is 0 V reverse | The connector net reaches an IC pin with no series element, and that pin's abs-max is not rated for reverse | critical when pinout and abs-max are both cited | Connector pinout; IC absolute-maximum ratings |
+| Sequencing | SoC, FPGA, or PMIC whose DS lists a required rail order | EN / PGOOD nets from the parser; DS sequence table | EN and PGOOD connections match the cited order and delay | A rail the DS requires later is hard-tied on, or an EN net is tied to the earlier rail | critical with netlist + DS table; not a finding if the DS states order does not matter | DS power-up sequence table |
+| Enable default | Load switch, boost, or regulator whose EN must stay off before firmware | EN pin `pin_net` and the resistors on that net | EN is held in the DS off polarity by a resistor to a rail that exists before firmware runs | EN is the on polarity at reset, or floats | warning; critical if the on state drives current into a battery or exceeds a cited abs-max | DS EN pin description |
 
-### 1.4 Battery & Backup
-- Check battery charging circuit parameters (if applicable).
-- Verify battery protection (overcharge, over-discharge, over-current).
-- Confirm RTC backup battery circuit.
-- Check fuel gauge / battery monitoring connections.
+## 2. Clocks and buses
 
-### 1.5 Power Margin Analysis
-| Component | Parameter | Minimum Margin | Recommended Margin |
-|-----------|-----------|----------------|-------------------|
-| Voltage Regulator | Output current | 20% | 30%+ |
-| Capacitor | Voltage rating | 50% | 100% |
-| Inductor | Saturation current | 20% | 30%+ |
-| MOSFET | Drain current | 30% | 50%+ |
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Crystal load | Crystal or oscillator on an IC pin | C1, C2 values; crystal CL from BOM; MCU pin capacitance if the DS gives it | 2·CL ≈ C1 + C2 + Cstray, with Cstray stated (use 3 pF if the layout model is absent) and the result within ±2 pF of the crystal CL | No load caps on a crystal that requires them, or the computed CL is more than 2 pF off | warning | Crystal DS load capacitance; MCU oscillator section |
+| I2C pull-up | SDA/SCL nets | `net_pins`; pull-up value and the rail it returns to | At least one pull-up to the IO rail, open-drain on every driver, value inside the range the DS or UM10204 allows for the speed | Net has no pull-up, or the pull-up rail is above a device's cited VIH/abs-max | critical with netlist when the pull-up is absent or the rail exceeds abs-max; warning on PDF | NXP UM10204; each device's I2C electrical table |
+| Strap / boot pins | SoC boot or address strap | Each strap `pin_net` resolved to a rail or divider | The resolved level matches the boot or address table for the intended mode | The net is tied to the opposite level of the required mode | critical with netlist + boot table | DS strapping / boot table |
+| CAN termination | CAN transceiver on this board | Resistor nets on CANH/CANL | 120 Ω at each end that is on this board | This board is an end node and has no 120 Ω | warning if the other end is off-board (`not verifiable` for that end); critical only when both ends are on this board and neither has 120 Ω | Transceiver DS; ISO 11898-2 |
+| RS-485 termination | RS-485 transceiver | A/B resistor nets | Termination and fail-safe bias match the transceiver DS for the cable being the end | End node on this board missing the resistor the DS requires | warning; not verifiable for an off-board peer | Transceiver DS termination section |
+| Unused CMOS input | Datasheet input pin with no function in this design | `missing_pins` against `lib_pins`, or `pin_net` for the tied net | Tied to a rail through the resistor or short the DS allows, or configured by a cited default | Input pin appears in no net | warning | DS pin description, unused-pin section |
 
----
+## 3. Protection and external ports
 
-## 2. Signal Integrity (信号完整性)
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| External-port clamp | Connector pin that leaves the enclosure (USB, jack, header, antenna, SIM) | Connector pin `pin_net`; protection part on that net | A TVS, series ferrite plus clamp, or a port IC whose DS claims the IEC level, with clamp voltage < protected-pin abs-max and standoff > the normal signal | The net has no protection part and the attached IC DS does not claim the IEC level | warning when the product ESD level is unknown; critical when the cited abs-max is below the connector's hot-plug voltage | IEC 61000-4-2 for the level; TVS DS clamp table; IC abs-max |
+| Unidirectional TVS polarity | Unidirectional TVS symbol | Symbol cathode/anode and the net names on each pin | Cathode faces the positive rail or signal being clamped | Cathode is on GND while the protected net is positive | warning | TVS DS pin configuration |
+| Antenna DC and match | RF port or antenna net | Series/shunt parts between RF pin and antenna | A series element and a shunt-to-ground option exist, values are DNP or populated against a cited match, and no DC short from the RF pin to ground | RF pin is a direct copper short to ground, or a fixed match is claimed with no DS/network note and no measurement | critical for a DC short proven by netlist; otherwise not verifiable for "match is correct" | RF IC reference schematic; measurement only if the user supplied it |
+| USB-C CC | USB-C receptacle | CC1 and CC2 `pin_net` separately | Each CC pin reaches the Rp, Rd, or Ra the role requires, and they are not shorted together | One CC floats, both share one resistor without the DS allowing it, or a source uses Rd | critical with netlist; warning on PDF | USB Type-C spec CC model; PD controller DS |
 
-### 2.1 High-Speed Signals
-- Verify series termination resistors on clock and high-speed signals.
-- Check parallel termination on clock distribution networks.
-- Confirm stub length on high-speed buses is within limits (typically < 1/6 rise-time length).
-- Verify differential pair routing rules are documented (impedance, skew).
-- Check AC coupling capacitors on serial links (PCIe, USB 3.x, etc.).
+Battery, 4G burst, and motor-stall checks stay in `references/conditional-review.md`. Use those fail conditions instead of restating them here.
 
-### 2.2 Clock Design
-- Verify crystal/oscillator load capacitor values match datasheet.
-- Check clock distribution buffer fan-out vs. input load.
-- Confirm jitter attenuation for sensitive clock domains.
-- Verify clock signal routing constraints are specified.
+## 4. Low power (battery, portable, always-on)
 
-### 2.3 Bus & Interface
-- Verify pull-up/pull-down resistors on I2C, SPI, UART, GPIO lines.
-- Check I2C bus capacitance budget (typically < 400pF for standard mode).
-- Confirm SPI clock polarity and phase (CPOL/CPHA) settings documented.
-- Verify CAN bus termination (120 ohm at both ends).
-- Check RS-485 termination and fail-safe biasing.
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Standby budget | Battery or an explicit standby-life target | Cell capacity and a measured standby current, or a spreadsheet the user supplied | Measured standby × required hours ≤ usable cell energy between the cited charge and cutoff voltages | The budget uses only active current, or only sums datasheet typical Iq | not verifiable when no measurement is supplied; warning if a supplied budget misses an always-on block you can see | Cell DS discharge curve; regulator Iq spec |
+| Gated domain back-drive | Load switch or FET that claims a domain is off | Off-state nets: pull-ups, TVS diodes, and bidirectional IO pins from the parser | No resistor, clamp diode, or IO pin connects the gated rail back to an always-on rail | A pull-up or diode on the gated rail returns to an always-on rail | warning; critical if that path charges a battery or forward-biases a GPIO | Load-switch DS; IO pin abs-max injection current |
+| Always-on Iq | Regulator that stays enabled in ship or standby | EN net and the Iq line in the DS | The always-on regulator's cited Iq is in the standby budget, and unused regulators have EN in the off state | A switcher or LDO with milliamp Iq is left enabled on the always-on rail | warning | Regulator DS quiescent-current table |
+| Ship / storage | Battery product | A switch, FET, or charger ship pin in the netlist | A ship or undervoltage path can disconnect the cell without a user button held | The cell stays connected through a path with no cutoff and no cited ship mode | warning | Charger or protector DS ship-mode section |
 
-### 2.4 Level Shifting
-- Verify voltage level translators for mixed-voltage interfaces.
-- Check bidirectional level shifter direction control.
-- Confirm open-drain vs. push-pull compatibility.
+## 5. Safety, test, firmware
 
----
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Mains barrier | AC primary, transformer, or optocoupler between mains and secondary | Isolation component DS and the net names on each side | The barrier part's cited isolation rating matches the declared safety class, and primary nets do not share a net name with secondary | A primary net and a secondary net are the same net, or the barrier part's cited rating is below the declared mains | critical when the short or the rating gap is cited; creepage distance is not verifiable from a schematic | IEC 62368-1 insulation; barrier-part DS |
+| Accessible voltage | A node marked accessible, or a connector the user can touch | Rail voltage annotation and the safety class the user named | Touchable nets stay inside the cited SELV/ES1 limit | A touchable connector pin is on a net annotated above that limit with no barrier | critical when the voltage annotation and the class are both in the files; otherwise not verifiable | IEC 62368-1 voltage limits for the named class |
+| Programming header | Production firmware | SWD, JTAG, or UART nets | A header or test points reach the programming pins, and the pin order is cited | No net from the programming pins reaches a header or test point | warning | MCU DS debug pinout |
+| Firmware-off safe state | Charger, PMIC, or boost the user says is configured in firmware | Default register or strap state from the DS, and EN nets | With no firmware, EN and default registers stay inside the safe ranges in the DS | The DS default enables charging, a boost, or a load that the hardware text says firmware must turn on | warning; critical if the default exceeds a cited battery or abs-max limit | DS power-on default / register reset table |
 
-## 3. Protection Circuits (保护电路)
-
-### 3.1 ESD Protection
-- Verify TVS diodes on all external-facing interfaces (USB, HDMI, Ethernet, GPIO headers).
-- Check TVS clamping voltage vs. IC maximum rating.
-- Confirm ESD protection on antenna/RF paths.
-- Verify spark gaps or discharge resistors where applicable.
-
-### 3.2 Over-Voltage / Over-Current
-- Check fuse or polyfuse on power inputs.
-- Verify crowbar circuit on critical rails (if applicable).
-- Confirm current limiting on USB VBUS output.
-- Check zener clamping on sensitive analog inputs.
-
-### 3.3 Isolation
-- Verify galvanic isolation on isolated interfaces (optocoupler, digital isolator).
-- Check isolation creepage/clearance distance markings.
-- Confirm isolated power supply for isolated sections.
-
----
-
-## 4. Circuit Logic & Correctness (电路逻辑)
-
-### 4.1 Functional Verification
-- Verify logic gates and combinational logic truth tables.
-- Check flip-flop clock domains and synchronization.
-- Confirm reset circuit (RC reset, supervisor IC, watchdog).
-- Verify boot configuration pins (strapping pins) have correct pull values.
-- Check unused input pins are tied to defined levels (not floating).
-
-### 4.2 Feedback & Control Loops
-- Verify feedback resistor divider values for adjustable regulators.
-- Check compensation network values for switching regulators.
-- Confirm loop stability criteria are documented.
-
-### 4.3 Timing
-- Verify setup/hold time margins for synchronous interfaces.
-- Check propagation delay budget for asynchronous paths.
-- Confirm power-on reset (POR) timing.
-
-### 4.4 Component Value Verification
-- Cross-check critical component values against design calculations.
-- Verify resistor power ratings for high-dissipation paths.
-- Check capacitor ESR requirements (especially for switching regulators).
-- Confirm inductor saturation current vs. peak current.
-
----
-
-## 5. Design Rule Checks (设计规则)
-
-### 5.1 Netlist Consistency
-- Verify all nets are properly labeled (no orphaned nets).
-- Check for net name conflicts or ambiguous naming.
-- Confirm power/ground net assignments.
-- Verify multi-page net connections via global labels/ports.
-
-### 5.2 Pin & Connector
-- Check connector pinout matches mechanical drawing.
-- Verify pin 1 markings are present.
-- Confirm keyed connectors for polarized interfaces.
-- Check for unused connector pins (documented as NC).
-
-### 5.3 Documentation
-- Verify revision history / version control markers.
-- Check design notes and critical parameter annotations.
-- Confirm test points are documented and accessible.
-- Verify BOM cross-reference numbers on schematic.
-
----
-
-## 6. Low-Power Design (低功耗设计)
-
-### 6.1 Sleep / Standby Current Budget
-- Sum every block's sleep and standby current; compare the always-on leakage total against cell capacity and the standby-life target.
-- Require a measured sleep/standby current, not a nominal datasheet sum; mark unverified claims.
-
-### 6.2 Floating & Unused Pins
-- Unused CMOS inputs must be tied high/low or firmware-disabled; floating inputs leak and emit EMI.
-- Avoid resistor-divider bias that leaves a pin near Vdd/2 (region of maximum leakage).
-
-### 6.3 Pull Resistor Leakage vs. Speed
-- Choose weak pull-ups for low leakage where edge speed allows; do not blindly use 4.7k on always-on lines.
-- Confirm pulldowns on unused inputs and on power-gated enable lines.
-
-### 6.4 Power-Gated Domains
-- Loads switched by load switch/FET must be truly isolated when off: no sneak path through protection diodes, rail pull-ups, or unpowered bidirectional IO.
-- Verify EN/gate default state (active-low enable needs a pulldown to stay off until firmware acts).
-
-### 6.5 Regulator Quiescent Current & Light-Load Efficiency
-- Always-on rail must use a nano-Iq LDO/PMIC; switching regulators must keep efficiency at the typical light load, not only at full load.
-- Disabled/unused regulators must be actually off (a regulator left enabled defeats the power gate).
-
-### 6.6 Always-On Domain & RTC/Backup
-- Keep the always-on domain minimal (e.g. BLE/PMIC only); high-power domains (camera, boost, backlight) enabled only on demand, never fed from an always-on rail.
-- Backup/RTC supply must not quietly drain the main cell; confirm ship/storage mode prevents deep discharge during shipping/shelf.
-
----
-
-## 7. EMC / EMI Design (电磁兼容 - 原理图级)
-
-### 7.1 I/O Filtering at Connector Entry
-- Every external cable/connector (USB, antenna, I/O, power) needs EMC filtering at the entry point: TVS + ferrite bead / RC / common-mode choke, placed connector-side first.
-- Distinguish ESD clamp (fast, low clamp) from EMI filter (common-mode, broadband); one TVS is not both.
-
-### 7.2 Decoupling for EMC
-- Proper decoupling values and dielectric (X7R) on every IC and each rail; high-frequency ceramic close to pins. Decoupling is the first line of radiated-emission control.
-
-### 7.3 Clock EMI
-- Enable spread-spectrum on clock/PLL where available; add series damping resistors on clock lines; avoid unterminated clocks routed near edges or I/O.
-- Keep clock traces short and away from cables/connectors; prefer internal layers.
-
-### 7.4 Switching Regulator EMI
-- Note snubber / bootstrap / switching-frequency choices that affect EMI; synchronous vs asynchronous trade-off; keep switching loops small (a PCB-layout rule, flagged to the layout stage).
-
-### 7.5 Grounding Strategy (defined at schematic)
-- Define AGND/DGND/RF ground relationship and the single-point tie; no net that silently bridges splits. Return-path continuity is the top EMI root cause.
-
-### 7.6 Unused & Floating
-- Tie unused CMOS inputs (floating inputs emit EMI); avoid intermediate-resistor bias near Vdd/2.
-
----
-
-## 8. Safety / Electrical Safety (电气安全)
-
-### 8.1 Creepage & Clearance
-- Verify spacing per applied working voltage and pollution degree (IPC-2221 / IEC 62368-1); flag any user-accessible node above SELV.
-- Isolation barriers: optocoupler/digital-isolator rated voltage; reinforced vs basic; margin to working/surge voltage.
-
-### 8.2 Over-Protection Coordination
-- Fuse/PTC/e-fuse rating and coordination with downstream OVP/OCP; verify against the accessible-voltage class.
-
-### 8.3 Battery Safety
-- Over-charge/over-discharge/over-current/short/reverse protection; thermal-runaway margin; ship/storage mode present. Cell + protector + charger coordination.
-
----
-
-## 9. DFM / DFT (可制造可测试)
-
-### 9.1 Test Points & ICT
-- Test points on every critical net (power, reset, key signals, programming); probe clearance and bed-of-nails access.
-
-### 9.2 Programming & Debug Access
-- SWD/JTAG/UART header present, accessible, keyed; provision for production programming and trim/calibration.
-
-### 9.3 Panelization & Process
-- Fiducials, orientation markings, solder-paste/aperture, assembly orientation; minimum annular ring / mask-sliver margins.
-
----
-
-## 10. Firmware-Hardware Co-Verification (固件-硬件协同)
-
-### 10.1 FW-Dependent Blocks
-- Any block enabled/configured by firmware (charger, PMIC, load switch, boost/buck EN, sensor config) must have its bring-up sequence specified and cross-checked to the datasheet.
-
-### 10.2 Safe Default State
-- Pre-firmware state must be safe: enables pulled to off/default, no rail back-driven, no latch-up.
-
-### 10.3 Production / Startup Flow
-- BIST/unlock/calibration (fuel-gauge, charger trim) must be in the production/startup flow; document the HW-FW dependency so "brick without FW" is explicit.
-
----
-
-## 11. Common Schematic Issues (常见问题)
-
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| Floating input pins | Critical | Unused CMOS inputs must be tied high or low |
-| Missing decoupling | Critical | Every IC power pin needs decoupling |
-| Missing pull on open-drain | Critical | I2C/SPI/INT lines need pull-up resistors |
-| Wrong TVS direction | Warning | TVS orientation matters for unidirectional types |
-| Exceeding absolute max | Critical | Any pin exceeding datasheet absolute maximum ratings |
-| Missing test points | Info | Test points improve debuggability and DFT |
-| Inconsistent naming | Info | Mixed naming conventions reduce readability |
-| No power sequencing | Critical | Multi-rail SoCs require defined power-up sequence |
+Layout spacing, copper weight, and creepage in millimetres are PCB evidence. On a schematic-only review those rows are `not verifiable`, not a pass.

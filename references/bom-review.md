@@ -1,44 +1,32 @@
-# BOM Review Checklist
+# BOM review checks
 
-## 1. Component Availability & Lifecycle (器件可采购性 & 生命周期)
+Apply `references/review-contract.md`. Stock, price, lead time, and lifecycle are `not verifiable` unless this review fetched a distributor page or the user supplied a dated export. This skill has no distributor client. Do not fill those cells from memory.
 
-### 1.1 Lifecycle Status
-- Verify each part is in "Active" production status (not NRND / EOL / Obsolete).
-- Check manufacturer end-of-life (EOL) notices for all critical components.
-- Confirm last-time-buy (LTB) dates for parts approaching EOL.
-- Verify recommended replacement parts are documented for NRND items.
-- Check manufacturer health / supply chain risk for sole-source components.
+When evidence exists, read it in this order: LCSC (szlcsc) first, then Digi-Key, Mouser, Arrow, Avnet. Quote the stock and lifecycle strings, the URL or filename, and the date. A miss at LCSC is not itself a finding; name the next source that is actually in the evidence and the price delta printed there.
 
-### 1.2 Lead Time & Stock — Sourcing Priority (固定优先级)
+## 1. Component availability and lifecycle
 
-**Fixed distributor check order — LCSC (szlcsc) first, then others:**
-1. **LCSC / szlcsc.com** — primary low-cost source; check stock + lifecycle here FIRST.
-2. **Digi-Key** — first fallback for parts out-of-stock-at-LCSC or missing at LCSC.
-3. **Mouser** — second fallback.
-4. **Arrow / Avnet** — franchise distributors for ICs needing authorized supply.
-5. Other authorized distributors as needed.
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Lifecycle of a major IC | MCU, radio, PMIC, memory, charger, or a sole connector | Fetched page or dated user export for the full MPN | Status shown is Active, or NRND with a second source named in the BOM | Status shown is EOL or Obsolete for that full MPN | critical when the page says Obsolete or EOL and no alternate is on the BOM; warning for NRND | The fetched page, not a recollection of the part |
+| Stock and lead time | The same parts, and any part the user flagged as long-lead | The same page or export | The page shows stock that covers the stated build quantity, or a lead time the user accepted in writing | The page shows zero stock and lead time above 16 weeks for the build date | warning | Page stock and lead-time fields |
+| MPN is orderable | Every BOM line for an assembled part | BOM manufacturer part number field | The MPN includes the ordering suffix (package, temperature, packing) and matches the manufacturer page you opened | The MPN is truncated, or the page's package suffix differs from the footprint | critical when the page shows a different package (for example LQFP48 vs LQFP64); warning when the suffix is simply missing | Manufacturer ordering guide |
+| Second source | MCU, PMIC, memory, or a custom connector | BOM AVL column or a note | A second MPN is listed and its package drawing matches the footprint, or the user marked the part sole-source on purpose | No second source and no sole-source note | warning. Sole-source is not Critical by itself | Second-source package drawing |
 
-For every major component: verify it is **in-stock at LCSC**, or, if not,
-identify the next source in the priority list that can fulfill it and note the
-price delta. A part unavailable at LCSC is not automatically a blocker, but the
-fallback must be named and priced.
+### Lifecycle words, only after the page shows them
 
-- Verify lead time is acceptable for production schedule (target: < 16 weeks).
-- Confirm minimum order quantity (MOQ) is reasonable for production volume.
-- Verify multi-distributor availability (at least 2 authorized distributors,
-  with LCSC as the preferred primary).
-
-### 1.3 Lifecycle Status Quick Reference
-| Status | Action | Risk Level |
-|--------|--------|------------|
-| Active | Proceed | Low |
-| Not Recommended for New Design (NRND) | Find alternative | Medium |
-| End of Life (EOL) - scheduled | Plan LTB + redesign | High |
-| Obsolete | Immediate redesign required | Critical |
+| Status on the page | Result |
+|---|---|
+| Active | Pass |
+| NRND | Warning, and name an alternate or a sole-source acceptance |
+| EOL with a last-time-buy date | Warning if the buy covers the build; Critical if the date is already past and no alternate is on the BOM |
+| Obsolete | Critical when no alternate is on the BOM |
 
 ---
 
 ## 2. Second Source & Alternatives (第二货源)
+
+Section 1 is the verdict for second source, lifecycle, and MPN suffix. Do not raise those as Critical from the bullets below. A bullet with no evidence file is `not verifiable`.
 
 ### 2.1 Pin-to-Pin Compatible Alternatives
 - Verify second source exists for all critical ICs (processor, regulator, memory).
@@ -193,20 +181,4 @@ fallback must be named and priced.
 
 ## 8. Common BOM Issues (常见BOM问题)
 
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| EOL component in BOM | Critical | Will cause production halt when stock depleted |
-| No second source for critical IC | Critical | Supply chain single-point-of-failure |
-| Incomplete MPN | Warning | Ambiguous ordering, may receive wrong variant |
-| Voltage rating insufficient | Critical | Capacitor failure / reliability risk |
-| Tolerance not specified | Warning | May not meet circuit performance requirements |
-| Non-standard value | Info | Sourcing difficulty, longer lead time |
-| Mismatched ref designators | Critical | Assembly will produce wrong board |
-| MSL not documented | Warning | Moisture damage during reflow |
-| No temperature grade specified | Warning | Field failure in extreme conditions |
-| Missing RoHS status | Info | Compliance documentation gap |
-| Package type not documented | Critical | Wrong footprint assignment, assembly failure |
-| Package suffix mismatch with MPN | Critical | Wrong package received (e.g., LQFP48 vs LQFP64) |
-| Footprint-to-BOM package mismatch | Critical | Component body does not match PCB pad layout |
-| No tape & reel spec | Info | Assembly equipment setup delay |
-| Package height exceeds enclosure | Warning | Mechanical interference with enclosure |
+Severity for lifecycle, stock, and package suffix comes from section 1. Do not mark a part EOL, out of stock, or sole-source Critical without the fetched page or the dated export. A capacitor voltage rating is Critical only when the BOM voltage is below the rail voltage on the schematic. A reference-designator mismatch between BOM and schematic is Critical when both files are in the review and the same ref maps to two MPNs. Package height versus the enclosure is `not verifiable` unless a mechanical drawing states the limit.

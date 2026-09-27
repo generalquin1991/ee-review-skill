@@ -162,6 +162,10 @@ CH15 criticals in the battery-jig review (CH_SDA_L15 missing its mux drive;
 ALTER_L15 net absent) were re-confirmed with `component_pins` / `net_pins` after
 the parser bug was fixed — only then were they retained.
 
+## Rule 6 — PDF-only connectivity cannot be Critical
+
+A connectivity claim (connected, unconnected, shorted, swapped, missing from a net, pulled to a rail) is Critical only with a `TelNetlist` or `KicadNetlist` lookup quoted in the finding. A schematic PDF or screenshot without that lookup is at most `warning`, evidence `PDF-only; connection not proven`. If the sheet is unreadable, the row is `not verifiable`. A readable wrong value (setpoint, voltage rating, abs-max) can still be Critical; that is a value claim.
+
 ## Failure modes observed (do not repeat)
 
 | # | Symptom | Wrong claim | Correct method |
@@ -176,6 +180,4 @@ the parser bug was fixed — only then were they retained.
 | 8 | Net has far more pins than physically plausible | "ground net misnamed as a VCC rail" | compare pin count against the rail's expected fan-out first |
 | 9 | Strap read as a divider midpoint instead of resolved to a logic level | "address is fine because the divider is 0.3V" | resolve 10k-to-3V3 + 1k-to-GND to a level, then decode AD1/AD0 |
 
-**Bottom line:** if a finding is not backed by a `TelNetlist` lookup AND (for
-substitute parts) a datasheet check, it is a hypothesis, not a finding. Mark it
-`warning` with "verify" or drop it — never ship it as `critical`.
+**Bottom line:** A connection finding needs a `TelNetlist` or `KicadNetlist` lookup. A PDF or screenshot without that lookup cannot be Critical. A substitute-part finding also needs that part's datasheet, with the section you opened. Anything else is a hypothesis: `warning` with "verify", or drop it.

@@ -1,14 +1,16 @@
-# Architecture Diagrams — Mandatory Format Spec
+# Architecture diagrams
+
+## When they are required
+
+Produce both diagrams before checklist findings only when the review inputs include a schematic (PDF or schematic source) or a netlist. Put the `.dot`, `.png`, and `.svg` files in the project directory next to those sources.
+
+If the review is BOM-only, Gerber-only, or a PCB layout with no schematic and no netlist, do not draw an architecture inferred from the parts list. Coverage status for both rows is `not applicable`, evidence `no schematic or netlist in this review`.
+
+**Format: Graphviz DOT (`.dot`), rendered with `dot`.** Do not substitute drawio, a hand-drawn SVG, or a PNG with no `.dot` source. Always ship the `.dot` plus rendered `.png` and `.svg`.
 
 ## Purpose
-Every EE review must open with two architecture diagrams **before** any
-checklist findings. They establish the design's topology so detailed findings can
-be cross-checked against the intended architecture, and they give non-expert
-stakeholders a fast mental model.
 
-**Format: Graphviz DOT (`.dot`), rendered with `dot`.** This is the fixed format
-for the skill — do not substitute drawio, hand-drawn SVG, or PNG-only output.
-Always ship the `.dot` source plus rendered `.png`/`.svg`.
+The diagrams fix the topology so later findings can be checked against it. They are not evidence that a net was reviewed. Connection claims still need the parser lookup in `references/netlist-verification.md`.
 
 ## General style rules (apply to BOTH diagrams)
 - **Layered, top-to-bottom** (`rankdir=TB`) unless the design reads better

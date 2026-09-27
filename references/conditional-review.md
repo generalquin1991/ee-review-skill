@@ -1,27 +1,18 @@
 # Conditional and Mandatory Hardware Review Matrix
 
-Use this matrix for every hardware review. Record each item as `confirmed`,
-`finding`, `not applicable (evidence)`, or `not verifiable (missing evidence)`.
-Never infer `not applicable` only because a symbol or reference designator was
-not recognized.
+Use this matrix for every hardware review. Record each item with the six fields in `references/review-contract.md`: trigger, evidence, pass, fail, severity, citation. Status is only `confirmed`, `finding`, `not applicable`, or `not verifiable`. Never infer `not applicable` only because a symbol or reference designator was not recognized. A row whose text is only "checked" or "已检查" is invalid.
 
-## Evidence Gate for Every Case
+## Evidence gate
 
-Before scoring any electrical dimension, request or locate:
+Before scoring an electrical dimension, record where each of these came from. If the file is missing, the coverage row is `not verifiable` and names the missing file. Do not add a finding that only says the item was checked.
 
-1. **System block diagram** - power sources, processors, radios, motors,
-   connectors, protection boundaries, and major loads.
-2. **Power tree** - every input source and rail, regulator, enable/sequence,
-   expected voltage/current, operating mode, and fault path.
-3. **Operating envelope** - input range, battery range, temperature range,
-   peak/steady loads, startup/shutdown behavior, and product environment.
-4. **Target compliance/test baseline** - product ESD level, emissions/immunity
-   target, safety class, and any project-specific requirement such as CERE.
+1. **System block diagram and power tree** — required only when the inputs include a schematic or a netlist. Follow `references/architecture-diagrams.md` and `references/review-contract.md`. BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: both rows are `not applicable`, evidence `no schematic or netlist in this review`.
+2. **Operating envelope** — input range, battery range, temperature, peak and steady loads, startup and shutdown. If the user did not provide it, claims about margin stay `not verifiable`.
+3. **Compliance target** — ESD level, emissions class, safety class, or a named project baseline such as CERE. If unnamed, do not invent one.
 
-If the block diagram or power tree is missing, add a warning finding under
-`Power Supply Design` and state which claims cannot be verified. A schematic
-that contains rails but does not provide an explicit power tree is not evidence
-that the power architecture has been reviewed.
+A schematic that shows rails but has no power-tree file has not closed the power architecture. When a schematic or netlist is present and the `.dot` file is missing, add a warning under Power Supply Design and mark the coverage row `not verifiable`.
+
+Connectivity findings follow the PDF rule in `references/review-contract.md`: no Critical connectivity claim without a `TelNetlist` or `KicadNetlist` lookup.
 
 ## Checks for Every Case: ESD and External Boundaries
 
@@ -42,9 +33,7 @@ part is visible:
   return paths separately; one TVS symbol is not proof that all pins are
   protected.
 
-Missing ESD evidence is a warning at minimum. An exposed interface with no
-credible clamp/return path is critical when the interface can damage a safety-
-or mission-critical rail.
+Missing ESD evidence is `not verifiable` when the connector pin net cannot be traced. An exposed interface with no clamp is Critical only when a netlist lookup shows the connector pin has no protection part and a cited absolute maximum is below the hot-plug voltage on that net. On a PDF with no parser lookup the ceiling is warning.
 
 ## Feature Triggers
 
@@ -293,25 +282,17 @@ Trigger on any BOM, component list, or design that names purchasable parts
 (always for production designs). Review the procureability of every major
 component (ICs, key passives, connectors, mechanicals):
 
-- **Source priority (fixed order):** check stock and lifecycle at **LCSC
-  (szlcsc.com) FIRST** — it is the user's primary low-cost source — then fall
-  back to **Digi-Key**, **Mouser**, **Arrow**, **Avnet**, and other authorized
-  distributors. A part that is unavailable at LCSC is not automatically a
-  blocker, but the reviewer must name the next source in the priority list that
-  can fulfill it and note the price delta.
-- **Lifecycle status:** Active vs NRND / EOL / Obsolete; flag last-time-buy
-  dates and mandatory redesign for obsolete parts.
-- **Stock & lead time:** in-stock at the primary source, or lead time
-  acceptable (< 16 weeks); flag long-lead or out-of-stock-at-primary parts.
-- **Second source:** at least one pin-compatible or functionally equivalent
-  alternative documented for every critical IC; sole-source parts are a
-  supply-chain single-point-of-failure and must be called out.
+- **Source evidence:** this skill has no distributor client. Stock, lead time, and lifecycle are `not verifiable` until a page fetched in this session or a dated user export quotes them. When that evidence exists, read **LCSC (szlcsc.com) first**, then **Digi-Key**, **Mouser**, **Arrow**, **Avnet**. A miss at LCSC is not a finding; name the next source that appears in the evidence and the price delta printed there.
+- **Lifecycle status:** Active, NRND, EOL, or Obsolete only as written on that page. Do not assign NRND or EOL from memory. Obsolete or past last-time-buy with no alternate on the BOM is Critical. NRND is a warning.
+- **Stock & lead time:** compare the page's stock and lead time with the build quantity the user stated. Flag lead time above 16 weeks only when the page shows it.
+- **Second source:** a pin-compatible alternate on the BOM, or an explicit sole-source note. A missing second source is a warning, not a Critical, and only when the BOM is in the review.
 - **MOQ / packaging:** MOQ reasonable for production volume; tape-and-reel /
   MSL documented for SMT.
 
-Record the primary source checked and the resulting status for each flagged
+Record the page URL or export filename and the quoted status for each flagged
 part. If no BOM or component list is provided, report Component Availability as
-`not applicable`.
+`not applicable`. If a BOM is present and no page or dated export was fetched,
+report it as `not verifiable`. Do not write "in stock" or "Active" from memory.
 
 ## CERE and Project-Specific Power Baseline
 
@@ -337,8 +318,8 @@ absent:
 
 | Check | Trigger/evidence | Status | Finding or evidence location |
 |---|---|---|---|
-| System block diagram | file/page or missing | confirmed/finding/not verifiable | location |
-| Power tree | file/page or missing | confirmed/finding/not verifiable | location |
+| System block diagram | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
+| Power tree | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
 | ESD and external boundaries | ports reviewed | confirmed/finding/not verifiable | location |
 | Battery thermal/energy | battery trigger or N/A evidence | confirmed/finding/not applicable/not verifiable | location |
 | Antenna matching | RF trigger or N/A evidence | confirmed/finding/not applicable/not verifiable | location |

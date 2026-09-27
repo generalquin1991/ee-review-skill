@@ -1,128 +1,55 @@
-# PCB Design Review Checklist
+# PCB design review checks
 
-## 1. Layer Stackup (层叠设计)
+Apply `references/review-contract.md` to every row. Geometry that is not in the layout file, stackup note, or fabrication drawing is `not verifiable`. A PDF stackup picture counts as evidence for the numbers it actually shows. Do not mark a row `confirmed` because the board "looks fine".
 
-### 1.1 Stackup Definition
-- Verify layer count is adequate for design complexity (signal density, power/ground planes).
-- Check signal layer / plane layer ratio (recommend >= 1 ground plane per 2 signal layers).
-- Confirm impedance-controlled layers are documented with target impedance.
-- Verify stackup symmetry for warpage control (balanced copper distribution).
-- Check prepreg/core thicknesses and copper weights are specified.
-- Confirm reference plane assignment for each signal layer.
+Reference for return path when a high-speed net changes layers: the new layer still needs an adjacent ground plane, and a stitching via beside the signal via. Analog ground ties to digital ground at one documented bridge, not by an unlabelled copper gap.
 
-### 1.2 Material & Thickness
-- Verify board thickness (standard: 1.6mm, check if different).
-- Check copper weight for power planes (1oz min for moderate current, 2oz+ for high current).
-- Confirm high-Tg material for lead-free / high-temperature applications (Tg >= 170C).
-- Verify dielectric constant (Dk) is specified for impedance control.
+## 1. Stackup, impedance, return path
 
-### 1.3 Reference Layer
-| Signal Type | Recommended Reference | Via Transition | Notes |
-|-------------|----------------------|----------------|-------|
-| High-speed single-ended | Adjacent ground plane | Stitching via | Minimize return path discontinuity |
-| Differential pair | Adjacent ground plane | Pair stitching vias | Maintain impedance through via |
-| Power | Adjacent ground plane | Decoupling nearby | Minimize loop inductance |
-| Analog | Dedicated analog ground | Bridge to digital GND | Star-point or bridge connection |
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Stackup called out | Impedance-controlled net, or a board with more than two copper layers | Fabrication stackup (layer count, copper weight, dielectric thickness, Dk) | Every signal layer names its reference plane, and the impedance note names the target (50 Ω single-ended, or the diff target the interface DS states) | No stackup file, or a controlled-impedance net has no target | not verifiable if the stackup was not supplied; warning if a controlled net has no target on a supplied stackup | IPC-2221 conductor and spacing sections; interface DS impedance |
+| Trace versus stackup | A net with a stated impedance | Calculated width from the stackup Dk and height, and the width measured in the layout | Width is within 10% of the calculation, or a field-solver note is attached | Width differs by more than 10% and no solver note exists | warning | Stackup note; IPC-2141 or the solver output the user supplied |
+| Pair skew | Differential pair whose standard names a skew limit | Layout length of P and N | Skew is inside the cited limit (USB 2.0, PCIe, DDR byte lane, or the PHY DS). Do not use 5 mil as a universal limit | Skew exceeds the cited limit | warning; critical only when the PHY DS states the link will not train beyond that skew | PHY or memory DS timing/routing section |
+| Trace over a split | Clock, differential pair, or other net the design calls high-speed | Layout crossing of that trace against plane voids and splits | The trace stays over a continuous reference, including across a layer change (stitching via present) | The trace crosses a split or a void in its reference with no stitch | critical when the crossing is visible in the layout | IPC-2221 return-path guidance; interface layout note |
+| Copper current | A power trace whose load current is known | Trace width, copper weight, and the load current | Current is at or below the 10 °C-rise row in the table below for that width and weight | Known current exceeds that row | warning; critical if the excess is >2× the table value | IPC-2221 Figure 6-1. The table below is an external approximation, not a substitute for the figure when the stackup is unusual |
 
----
+| Copper weight | 0.25 mm | 0.50 mm | 1.00 mm | 2.00 mm | Rise |
+|---|---|---|---|---|---|
+| 1 oz (35 µm) | 0.5 A | 1.0 A | 1.8 A | 3.5 A | 10 °C |
+| 2 oz (70 µm) | 0.8 A | 1.5 A | 2.8 A | 5.5 A | 10 °C |
 
-## 2. Signal Integrity (信号完整性)
+## 2. Power and thermal geometry
 
-### 2.1 Impedance Control
-- Verify impedance-controlled nets are documented (50 ohm single-ended, 90/100 ohm differential).
-- Check trace width vs. stackup for target impedance.
-- Confirm impedance is maintained through connector transitions.
-- Verify layer change vias have reference plane stitching vias nearby.
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Decoupling loop | IC power pin whose schematic check requires a local capacitor | Layout distance from that capacitor pad to the IC pin, and the via to the plane | Capacitor is on the same side or opposite side directly under the pin, with a via to the plane at the cap pad | The only capacitor on that net is on the far side of the board with a long trace before the via | warning | IC layout section |
+| QFN thermal pad | QFN, DFN, or exposed-pad package | Footprint pad, via count under the pad, paste window | Paste is a window or dot pattern, and thermal vias are inside the exposed pad | Exposed pad has no copper pad, or paste is a single full-size opening on a pad larger than 5 mm | critical if the exposed pad is missing from the footprint; warning for paste voiding | Package DS land pattern; IPC-7351 |
+| Heat versus rating | Part with a cited dissipation and θJA | θJA, copper area or thermal vias, worst ambient the user named | Estimated Tj = Ta + P·θJA is below the DS maximum | Estimated Tj exceeds the maximum at the named ambient | critical when P, θJA, and Ta are all cited; otherwise not verifiable | Package DS thermal characteristics |
 
-### 2.2 Length Matching
-- Verify differential pair intra-pair skew (typically < 5 mil).
-- Check bus length matching requirements (DDR: byte-lane matching).
-- Confirm clock-to-data length matching for synchronous buses.
-- Verify serpentine/pattern matching compensation is applied correctly.
+## 3. EMC geometry
 
-### 2.3 Crosstalk
-- Check parallel trace spacing (3W rule minimum for critical signals).
-- Verify high-speed signals are separated from sensitive analog.
-- Confirm guard traces / ground copper pour between critical nets.
-- Check layer-to-layer crosstalk (orthogonal routing on adjacent layers).
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Clock placement | A clock or crystal | Layout location versus board edge and connectors | The clock net is not on the outer millimetres beside an external connector, and it has a continuous adjacent ground | The clock runs along the board edge into a connector with no ground between them | warning | CISPR 32 is a test, not a layout proof; cite the PHY/clock layout note you used |
+| Plane split with no document | A ground pour that is split | Split polygon and any schematic note that names AGND versus DGND | The split matches a named AGND/DGND bridge, and no high-speed trace crosses it | A split exists with no note, or a clock crosses it | warning for an undocumented split; critical if a clock or differential pair crosses it | Design note; IPC-2221 |
+| Entry filter | External cable that the schematic places a choke or ferrite on | Placement of that part versus the connector | The filter part is the first component after the connector, not after a long trace | The series filter is several centimetres inside the board | warning | Filter DS recommended layout |
 
-### 2.4 Return Path
-- Verify continuous return path under all high-speed traces.
-- Check for return path discontinuities (plane splits, voids, cutouts).
-- Confirm stitching vias near signal layer transition vias.
-- Verify no traces cross plane splits (especially high-speed and clock).
+## 4. Footprint checks that close only against a datasheet
+
+Pad count, pitch, and exposed-pad size are Critical only when compared with the package drawing you opened. A library name that resembles the package is not that comparison.
+
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Land versus package | Every IC, connector, and non-0201 passive | Footprint pad count, pitch, and courtyard versus the package drawing | Pad count and pitch match the drawing; QFN exposed pad matches the EP size | Pad count or pitch differs, or the EP is absent | critical | Package outline drawing, dimensions page |
+| Same BOM value, two lands | One value used in more than one footprint | BOM line and the footprints of its reference designators | One land pattern per value, or the BOM splits the lines by package | The same value and the same MPN are on both 0603 and 0805 | warning | BOM MPN; package drawing |
+| Pin-1 mark | Polarized part | Silk or fab mark on the footprint, visible outside the pad | A pin-1 mark exists and is not on a pad | No pin-1 mark, or silk crosses a pad | warning | IPC-7351 marking; assembly drawing |
 
 ---
 
-## 3. Power Integrity (电源完整性)
+## 5. KiCad mask, paste, and conversion checks
 
-### 3.1 Power Distribution
-- Verify power plane integrity (no excessive segmentation).
-- Check power plane width / copper area for current carrying capacity.
-- Confirm DC voltage drop analysis for high-current rails.
-- Verify power and ground plane pair is adjacent (minimizes loop inductance).
-
-### 3.2 Decoupling Placement
-- Verify decoupling capacitors are placed as close to IC power pins as possible.
-- Check via-in-pad or short trace connections for decoupling.
-- Confirm bulk capacitors placed near regulator output.
-- Verify decoupling via connection directly to plane (minimize trace loop).
-
-### 3.3 Power Plane Current Capacity
-| Copper Weight | 1oz (35um) | 2oz (70um) | Temperature Rise |
-|---------------|------------|------------|-----------------|
-| 0.25mm trace | 0.5A | 0.8A | 10C |
-| 0.50mm trace | 1.0A | 1.5A | 10C |
-| 1.00mm trace | 1.8A | 2.8A | 10C |
-| 2.00mm trace | 3.5A | 5.5A | 10C |
-
----
-
-## 4. Thermal Management (热设计)
-
-### 4.1 Component Placement
-- Verify high-power components are spaced adequately.
-- Check thermal-sensitive components (crystal, electrolytic cap) away from heat sources.
-- Confirm thermal vias under QFN/BGA thermal pads.
-- Verify thermal pad solder paste pattern (window-pane / dots to prevent voiding).
-
-### 4.2 Copper Pour & Heat Spreading
-- Check solid copper pour connected to heat-dissipating pads.
-- Verify thermal relief connections for solderability (on plane connections).
-- Confirm adequate copper area for heat spreading (estimate via theta-JA).
-
-### 4.3 Airflow & Ventilation
-- Verify component orientation aligns with airflow direction (if forced air).
-- Check tall components do not block airflow to downstream heat sinks.
-
----
-
-## 5. EMC / EMI Design (电磁兼容设计)
-
-### 5.1 Layout Partitioning
-- Verify clear separation between analog, digital, and RF sections.
-- Check mixed-signal IC placement at section boundary.
-- Confirm ground plane splits are intentional and documented.
-- Verify no traces cross ground plane splits.
-
-### 5.2 Filtering & Shielding
-- Verify common-mode chokes on external cables (USB, Ethernet, HDMI).
-- Check pi-filter / ferrite bead on power entry.
-- Confirm shield can / EMI gasket footprint where required.
-- Verify stitching capacitors across plane splits at signal crossing points.
-
-### 5.3 Clock & High-Frequency
-- Check clock oscillator placement (away from edges and I/O connectors).
-- Verify clock traces are routed on internal layers where possible.
-- Confirm clock traces have guard ground traces or are embedded between planes.
-- Check return current path for all high-frequency signals.
-
-### 5.4 Grounding
-- Verify single-point or multi-point grounding strategy is defined.
-- Check chassis ground connection points (ESD discharge path).
-- Confirm ground via stitching density (approx every lambda/20 for highest freq).
-
----
+The checks below are evidence rules for solder mask, paste, and PADS conversion loss. Record each one with the six fields in `references/review-contract.md`. A footprint or routing mismatch is Critical only when the package drawing or the layout measurement in sections 1–4 says so. Do not raise a finding from the category name alone.
 
 ## 6. Footprint & Land Pattern Verification (封装与焊盘验证)
 
@@ -211,16 +138,7 @@ When reviewing a PADS ASCII file converted via kicad-cli, be aware of these know
 - Confirm footprint name in PCB library matches package type in BOM (e.g., "SOIC-8_3.9x4.9mm_P1.27mm").
 - Verify same-value components use consistent footprint (no mixing 0603 and 0805 for same resistor value).
 
-| Common Footprint Issue | Severity | Impact |
-|----------------------|----------|--------|
-| Wrong package assigned (e.g., QFN32 vs QFN48) | Critical | Component won't fit, assembly failure |
-| Pad size mismatch vs. component | Critical | Solder joint reliability, tombstoning |
-| Missing thermal pad footprint on QFN | Critical | Overheating, electrical instability |
-| NSMD/SMD selection wrong for BGA | Warning | Pad lifting risk, joint reliability |
-| Courtyard overlap | Warning | Assembly difficulty, rework challenge |
-| Pin 1 marker missing | Warning | Wrong orientation risk during assembly |
-| Inconsistent footprints for same value | Info | Library management issue, confusion |
-| Silkscreen over pad | Info | Solderability concern, cosmetic |
+Footprint severity is decided in section 4. Do not copy a Critical from this section without the package drawing.
 
 ---
 
@@ -275,23 +193,6 @@ When reviewing a PADS ASCII file converted via kicad-cli, be aware of these know
 
 ---
 
-## 8. Common PCB Issues (常见PCB问题)
+## 9. Severity source
 
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| Trace over plane split | Critical | Return path discontinuity causes EMI and SI issues |
-| Insufficient decoupling vias | Critical | High loop inductance reduces decoupling effectiveness |
-| No thermal vias on QFN | Warning | Overheating risk for thermal pad components |
-| Clock near board edge | Warning | EMI radiation from edge, coupling to cables |
-| 90-degree trace corners | Info | Can cause etching issues and impedance discontinuity at high freq |
-| Missing test points | Info | Reduces debuggability and test coverage |
-| Tight component spacing | Warning | Assembly difficulty, rework challenges |
-| Via in BGA pad without fill | Warning | Solder joint reliability concern |
-| No copper balance | Warning | Warpage risk during reflow |
-| Acid trap routing | Info | Acute angle traps etchant causing over-etching |
-| Wrong footprint assigned | Critical | Component body does not match PCB pad layout |
-| Missing thermal pad on QFN footprint | Critical | No heat dissipation path, component overheating |
-| NSMD pads at board edge | Warning | Pad lifting risk during depanelization |
-| Silkscreen over solder pad | Warning | Solderability issue, cosmetic defect |
-| Courtyard overlap between components | Warning | Assembly difficulty, potential solder bridging |
-| Inconsistent footprints for same value | Info | Library management issue, maintenance confusion |
+Return path, copper current, clock placement, and footprint mismatches take their severity from sections 1–4. A missing test point is `info` only when the net is named in the DFT list and the layout shows no probe pad. An acute trace corner is `info` and only on a net whose edge rate is cited.

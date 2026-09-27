@@ -181,31 +181,33 @@ following:
 If a power budget or measured standby current is unavailable for a triggered
 design, report low-power as `not verifiable` and name the missing evidence.
 
+### EMC and safety applicability (private)
+
+Before the EMC or safety checks, decide which phenomena apply. Use the schematic and, when the user supplied one, the PRD. Keep this list in the working notes. Do not put it in the HTML report or the PPT: no slide and no paragraph that says which of RE, CE, RS, CS, EFT, surge, or a safety standard "applies".
+
+| What the schematic or PRD shows | Review the design against |
+|---|---|
+| Mains inlet | CE, EFT, surge, and the barrier / fuse / Y-capacitor parts |
+| DC jack, USB VBUS, or other cable used as power | CE and EFT on that cable; ESD on the connector |
+| USB, HDMI, Ethernet, or another data cable that leaves the enclosure | RE and RS via the cable, plus CE, CS, and EFT if the cable also carries power or is long |
+| Battery only, no cable and no mains | Switcher and radio RE only; do not invent cable CE, CS, or EFT findings |
+| Radio antenna | RE and RS of the RF path; do not treat a 50 Ω antenna net as a place for a common-mode choke unless the radio reference design puts one there |
+| Motor or other inductive lead | EFT and CE on that lead |
+
+A TVS is the ESD clamp. It is not by itself a filter for RE, CE, RS, CS, or EFT.
+
 ### EMC / EMI (radiated & conducted emissions, immunity)
 
-Trigger on any clock above ~1 MHz, switching regulator/DC-DC, radio (BLE/Wi-Fi/
-cellular/GNSS), cable/connector (USB, antenna, I/O, power), motor, or an explicit
-emissions/immunity/CISPR/CE/FCC/ISO 11452 target. Review all of the following:
+Trigger on any clock above ~1 MHz, switching regulator, radio, cable, motor, or a PRD emissions line. Review only the rows selected above. Write findings as missing or present parts, not as the applicability judgment.
 
-- **Radiated emissions:** clock harmonics, DC/DC switching spectrum, RF spurious,
-  and cable/loop antenna effect. Confirm spread-spectrum is enabled on clock/PLL
-  where available, series damping on clock lines, and routing away from edges/I-O.
-- **Conducted emissions:** noise on power and cable lines; verify pi-filter /
-  ferrite bead / common-mode choke at power entry and on external cables, placed
-  connector-side first.
-- **Immunity:** ESD is handled by the always-on check; confirm surge/burst/
-  radiated-immunity margins for the product environment and that no long
-  unprotected trace precedes a clamp.
-- **Filtering & shielding:** CM chokes on external cables, shield-can / EMI-
-  gasket footprint where required, stitching capacitors across plane splits.
-- **Grounding strategy:** single- vs multi-point ground defined; chassis/ESD
-  return path; no traces crossing ground splits (return-path discontinuity is a
-  leading EMI cause); ground via stitching density.
-- **Layout partitioning:** analog / digital / RF sections separated; mixed-
-  signal IC straddles the boundary intentionally.
+- **RE:** a clock or switch node that can leave on a cable needs a series damping resistor or a common-mode choke / ferrite at the connector. The shield pin of that connector returns to the chassis or connector ground at the connector, not through a long trace.
+- **CE:** a power cable has a pi-filter, common-mode choke, or ferrite before the rest of the board. The part, or a DNP footprint for it, sits on the connector side of the first bulk capacitor.
+- **RS and CS:** the same cable filter is the immunity part. An analog or I/O net that runs from a connector to an IC with no series impedance and no DNP footprint is a finding.
+- **EFT:** a cable longer than an on-board jumper has a ferrite or common-mode choke and a clamp at the entry. A logic net that crosses the connector with neither is a finding.
+- **Reserved filter:** a DNP footprint for the choke, ferrite, or extra capacitor counts as provision. Say whether it is populated or DNP. No footprint at all, on a cable the private table says needs a filter, is a finding that asks for the footprint even if the part stays DNP on the prototype.
+- **Antenna exception:** do not call a missing choke on the RF antenna net a CE/RE fix.
 
-If the product names an emissions/immunity class but the design provides no
-filtering/shielding evidence, report EMC/EMI as `not verifiable`.
+If the private table selects a cable phenomenon and the connector net has neither a filter nor a DNP footprint, the EMC coverage status is `finding`. If the product has no cable, no switcher, and no radio, EMC is `not applicable` and the report does not explain the phenomena that were skipped.
 
 ### Safety / Electrical Safety
 
@@ -225,7 +227,7 @@ SELV, battery/Li-Po, or high-energy storage. Review:
 - **User-accessible parts:** no exposed live conductor above SELV; enclosure/
   connector-shell earthing/return path.
 
-If no safety class/baseline is provided, report Safety as `not verifiable`.
+Use the same private table as EMC. A battery product with no mains and no isolation barrier does not get a creepage finding, and the report does not say which safety standard was considered. When mains or a barrier is actually on the schematic, the finding names the fuse, Y capacitor, or barrier part that is missing or underrated. If the PRD names a safety class and the schematic has mains, but the barrier rating cannot be read, Safety is `not verifiable` and the report names the missing datasheet, not the class-selection step.
 
 ### Thermal Management
 

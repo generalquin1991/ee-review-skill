@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
+description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审, design review ppt, 评审PPT."
 agent_created: true
 ---
 
@@ -305,6 +305,26 @@ The script generates a styled HTML report with:
 
 Return the generated HTML path to the user so it can be opened or previewed by the host environment.
 
+#### 5.4 Design review deck
+
+When the user asks for the review PPT, DFM deck, or the same slide style, read `references/ppt-style.md` and produce the deck only with these commands:
+
+```bash
+python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o crop.png
+python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o crop.png --mark box
+python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYYMMDD>.pptx
+```
+
+Do not assemble the PPT with python-pptx, hand-edited slide XML, a copied template, or a one-off script written during the review. If the command cannot express the layout, change the script in this skill and run it again.
+
+A slide needs a location (reference, net, or datasheet row) and a verdict, including an explicit accept. `not verifiable`, missing files, the coverage table, and S/A/B/C grades stay in the HTML report.
+
+Before EMC or safety findings, decide which phenomena apply from the schematic and from the PRD if one was provided. The rule is in `references/conditional-review.md` under EMC and safety applicability. Do not write that choice into the HTML narrative or the PPT. Do review the schematic against it: cable filters on USB and HDMI, power-entry filters, and DNP footprints where a filter is not yet fitted. A TVS alone is not that filter. Findings name the connector, the nets, and whether the filter is populated, DNP, or missing.
+
+KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. Text netlists use `scripts/parse_netlist.py`. Boards that `scripts/convert_layout.py` already supports stay on that path. If a PADS or Altium schematic cannot be turned into a netlist by those tools, stop and ask for a netlist or BOM export. Point at `references/file-preparation-guide.md`. Do not write a parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
+
+Propose `project_code`, `designer`, `reviewer`, and `review_date` before writing `deck.json`. Take the project code from the directory or the title block. Ask for a designer or reviewer name you cannot read from the design. Use today's date as `YYYYMMDD`. Do not copy an identity from an older deck.
+
 ## Review Dimensions
 
 ### Schematic Review Dimensions
@@ -402,6 +422,8 @@ Always reference `references/standards-reference.md` during review to:
 - `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
 - `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
+- `generate_pptx.py` - **The only command that writes a review PPT.** Reads `deck.json` and fills `assets/review-slide-template.pptx` by replacing existing text runs. Usage: `python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYYMMDD>.pptx`. See `references/ppt-style.md`.
+- `crop_schematic.py` - **The only command that crops a KiCad symbol or draws a red box/arrow on a review figure.** Usage: `python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o crop.png`. An existing PNG uses `--image` and optional `--box` / `--mark`.
 - `convert_layout.py` - Auto-detects PCB layout file format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb, KiCad .kicad_pcb) and converts to KiCad format using kicad-cli. Optionally exports Gerber, drill, pick-place, and netlist files. Includes post-conversion audit that checks for routing trace loss, solder mask/paste settings, via tenting, silk screen completeness, board outline, and copper zones. Requires KiCad 8+ installed.
 - `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.
 - `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions, then enforces the fit-error threshold. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
@@ -437,7 +459,8 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
 - `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
 - `architecture-diagrams.md` - Graphviz format for the system block diagram and power tree. Required only when the review includes a schematic or a netlist (Step 1.8).
-- `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures.
+- `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures. When a PADS or Altium schematic is not parsed by the bundled tools, ask for a netlist or BOM export using this guide instead of writing a parser.
+- `ppt-style.md` - How to fill the review deck: cover fields, which conclusions become slides, and the two commands that produce figures and the PPT.
 
 ### assets/
 No assets required. The HTML report is generated dynamically by the script.

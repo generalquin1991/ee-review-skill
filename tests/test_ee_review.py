@@ -1,4 +1,6 @@
 import io
+import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -221,6 +223,8 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("no schematic or netlist in this review", contract)
         self.assertIn("not verifiable", contract)
         self.assertIn("This skill does not include a distributor client", contract)
+        self.assertIn("EMC and safety applicability (private)", matrix)
+        self.assertIn("That choice is not a slide", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
 
 
 class GradePolicyTests(unittest.TestCase):
@@ -276,6 +280,121 @@ class GradePolicyTests(unittest.TestCase):
         self.assertEqual(data["overall_grade"], "D")
         self.assertEqual(data["dimensions"][0]["grade"], "D")
         self.assertNotIn("grade_policy_notes", data)
+
+
+class DeckCommandTests(unittest.TestCase):
+    def test_template_and_style_do_not_carry_source_identity(self):
+        banned = ("8SP", "Quin", "qingfeng", "BQ25101")
+        template = (ROOT / "assets" / "review-slide-template.pptx").read_bytes()
+        style = (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8")
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        for token in banned:
+            self.assertNotIn(token.encode(), template)
+            self.assertNotIn(token, style)
+            self.assertNotIn(token, skill)
+        self.assertIn("scripts/generate_pptx.py", skill)
+        self.assertIn("scripts/crop_schematic.py", skill)
+        self.assertIn("one-off script", skill)
+        self.assertIn("not verifiable", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
+
+    def test_deck_keeps_template_font_and_rejects_template_identity(self):
+        import zipfile
+
+        import generate_pptx
+
+        def run_properties(blob, shape_name):
+            text = blob.decode("utf-8")
+            index = text.find(f'name="{shape_name}"')
+            start = text.rfind("<p:sp", 0, index)
+            end = text.find("</p:sp>", index)
+            block = text[start:end]
+            match = re.search(r"<a:rPr\b[^>]*(?:/>|>.*?</a:rPr>)", block, flags=re.S)
+            return match.group(0)
+
+        with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
+            before = run_properties(archive.read("ppt/slides/slide1.xml"), "Google Shape;93;p14")
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "DEMO_design_review_20260927.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "Schematic · power",
+                        "subtitle": "U6 — charge current",
+                        "body": "Rset is 3.4 kΩ. Therefore the fast-charge current is 39.7 mA. It is recommended to verify the cell's 1C rate.",
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            with zipfile.ZipFile(output) as archive:
+                slide = archive.read("ppt/slides/slide1.xml")
+                finding = archive.read("ppt/slides/slide19.xml").decode("utf-8")
+            self.assertEqual(run_properties(slide, "Google Shape;93;p14"), before)
+            self.assertIn("DEMO", slide.decode("utf-8"))
+            self.assertIn("Schematic · power", finding)
+            self.assertNotIn("Evidence1", finding)
+            self.assertNotIn(b"8SP", slide)
+
+            deck["project_code"] = "8SP"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                generate_pptx.main([str(json_path), "-o", str(output)])
+
+    def test_long_body_continues_on_the_next_slide(self):
+        import generate_pptx
+
+        sentence = "The resistor stays on the rail and sets the charge current. "
+        body = sentence * 40
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "Schematic · power",
+                        "subtitle": "U6 — charge current",
+                        "body": body,
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            import zipfile
+
+            with zipfile.ZipFile(output) as archive:
+                names = [name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
+            self.assertGreaterEqual(len(names), 3)
+
+    def test_symbol_crop_box_uses_sheet_coordinates(self):
+        import crop_schematic
+
+        schematic = """
+        (kicad_sch (version 20231120) (generator eeschema)
+          (paper "A4")
+          (lib_symbols
+            (symbol "Device:R" (pin passive line (at 0 0 0) (length 0))
+              (property "Reference" "R" (at 0 0 0))
+            )
+          )
+          (symbol (lib_id "Device:R") (at 100 40 0) (unit 1)
+            (property "Reference" "R35" (at 100 38 0))
+          )
+        )
+        """
+        positions = crop_schematic.symbol_positions(schematic)
+        self.assertEqual(positions["R35"], [(100.0, 40.0)])
+        self.assertNotIn("R", positions)
+        box = crop_schematic.crop_box_mm(positions["R35"], 25, (297.0, 210.0))
+        self.assertEqual(box, (75.0, 15.0, 125.0, 65.0))
 
 
 if __name__ == "__main__":

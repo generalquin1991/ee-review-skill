@@ -41,6 +41,8 @@ One finding per slide, in English, three to five sentences.
 3. `problem` is one sentence stating the issue, or the accept, on a single line. At most 60 characters. The finding layout's placeholder does not wrap; a longer sentence is rejected.
 4. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
 
+The E96 resistor finding is one slide. Group each off-grid value once with the references that use it, then one verdict. Set `"single_page": true` on that slide so a long list does not continue onto another page.
+
 Use only these verdict forms:
 
 - `We recommend …` or `It is recommended to …`, followed by the part number or the value to use.

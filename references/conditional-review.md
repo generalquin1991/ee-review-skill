@@ -329,7 +329,7 @@ If the CERE document, revision, or acceptance data is missing, add a
 
 ### Passives and minimum systems
 
-When the schematic or BOM contains resistors, check every printed value against IEC 60063 E96 as specified in `references/schematic-review.md`. `0 Ω` is a jumper. A non-E96 value is a finding unless a cited IC equation requires that exact value.
+When the schematic or BOM contains resistors, check every printed value against IEC 60063 E96 as specified in `references/schematic-review.md`. `0 Ω` is a jumper. Report every non-E96 value together in one finding, unless a cited IC equation requires that exact value.
 
 When capacitors are present, check the voltage rating of every capacitor against the DC voltage across it, and the DC-bias loss of every Class II ceramic. C0G/NP0 does not get a bias-loss finding. Electrolytic and tantalum parts use the derating in that same section. A missing voltage rating is `not verifiable` for that capacitor.
 

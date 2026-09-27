@@ -268,10 +268,14 @@ def build_deck(data, output):
             if not str(slide.get(key, "")).strip():
                 raise SystemExit(f"each slide needs {key}")
         problem = require_problem_line(slide["problem"])
-        chunks = split_body(slide["body"])
         images = list(slide.get("images") or [])
         if slide.get("image"):
             images.append(slide["image"])
+        if slide.get("single_page"):
+            chunks = [slide["body"]]
+            images = images[:2]
+        else:
+            chunks = split_body(slide["body"])
         groups = [images[start:start + 2] for start in range(0, len(images), 2)] or [[]]
         pages = max(len(chunks), len(groups))
         for page in range(pages):

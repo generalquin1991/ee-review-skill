@@ -242,6 +242,7 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("EMC and safety applicability (private)", matrix)
         schematic = (ROOT / "references" / "schematic-review.md").read_text(encoding="utf-8")
         self.assertIn("Resistor is E96", schematic)
+        self.assertIn("One finding and one slide", schematic)
         self.assertIn("2.2` is not `2.21", schematic)
         self.assertIn("Class II DC bias", schematic)
         self.assertIn("MCU and SoC minimum system", schematic)
@@ -530,6 +531,35 @@ class DeckCommandTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 names = [name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
             self.assertGreaterEqual(len(names), 3)
+
+    def test_single_page_finding_does_not_continue(self):
+        import generate_pptx
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "BOM · resistors",
+                        "subtitle": "Resistors — E96",
+                        "problem": "Several resistors are outside the E96 series.",
+                        "body": "2.2 k\u03a9 is used by R1 and R2. " * 40,
+                        "single_page": True,
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            import zipfile
+
+            with zipfile.ZipFile(output) as archive:
+                names = [name for name in archive.namelist() if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
+            self.assertEqual(len(names), 2)
 
     def test_symbol_crop_box_uses_sheet_coordinates(self):
         import crop_schematic

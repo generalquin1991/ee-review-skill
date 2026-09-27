@@ -85,9 +85,9 @@ Compare the resistance to IEC 60063 E96. Divide by decades until the mantissa is
 
 | Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
 |---|---|---|---|---|---|---|
-| Resistor is E96 | Every resistor with a value, including DNP parts that print one | Schematic value, or the BOM resistance and tolerance when the BOM is in the review | Mantissa is in the E96 list above. A stated tolerance is ±1% or tighter. `0 Ω` is a jumper and is not scored | Mantissa is not in the list, or the stated tolerance is wider than ±1% | warning. One finding per off-grid value, naming every reference that uses it | IEC 60063 E96 |
+| Resistor is E96 | Every resistor with a value, including DNP parts that print one | Schematic value, or the BOM resistance and tolerance when the BOM is in the review | Mantissa is in the E96 list above. A stated tolerance is ±1% or tighter. `0 Ω` is a jumper and is not scored | Mantissa is not in the list, or the stated tolerance is wider than ±1% | warning. One finding and one slide for every off-grid resistor. Group each value once, then its references. Set `single_page` so the deck command does not continue that slide | IEC 60063 E96 |
 
-A value that a cited IC equation requires exactly, and that is not on the list, is an explicit accept for that reference. Name the equation. Do not silently treat it as E96.
+A value that a cited IC equation requires exactly, and that is not on the list, is an explicit accept for that reference. Name the equation in the same slide. Do not silently treat it as E96. Do not open a second slide that repeats the E96 recommendation.
 
 ### Capacitor DC bias
 

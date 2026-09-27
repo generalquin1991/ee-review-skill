@@ -11,7 +11,7 @@ Citation means a document you opened. Copy the table or section id into the find
 | Rail has a source | A named load rail (3V3, 1V8, AVDD, PVDD, VBAT, VBUS) | Power-tree `.dot` plus `net_pins` for that rail, or the PDF sheet if no netlist | Every IC power pin on that rail shares a net with a regulator output, a battery pin, or VBUS | A power pin's net has no source pin | critical with netlist; warning on PDF | Regulator or PMIC pin table |
 | Current headroom | Regulator, load switch, or USB source feeding a known load | BOM current limit and a load list (datasheet typ/max, or measured) | Source Iout ≥ 1.3× the sum of maximum loads on that rail, including the stated peak | Sum of known maximum loads > source Iout | critical when both numbers are cited; otherwise not verifiable | Source DS output-current spec; load DS supply current |
 | Required local capacitor | IC power, PLL, RF, REF, or ADC pin whose datasheet names a capacitor | `net_pins` of that pin, capacitor refs on the same net, values from schematic or BOM | The DS-required value and dielectric are on that net | The named pin's net has no capacitor, or the value contradicts the DS | critical with netlist + DS; warning on PDF | DS power-supply / layout section, not a universal 0.1 µF + 10 µF rule |
-| MLCC voltage bias | Class II ceramic (X5R/X7R/Y5V) on a DC rail | Cap voltage rating and dielectric from BOM; rail voltage from schematic | Rated voltage ≥ 2× the DC bias, or the cap DS DC-bias curve still meets the required C at that bias | Rating < rail voltage, or class II rating < 2× bias and no bias curve is cited | critical if rating < rail; warning if only the 2× rule fails | Capacitor DS DC-bias curve |
+| Capacitor voltage rating | Every capacitor, including coupling, bypass, and bulk parts | Rated voltage from the BOM or the schematic; the DC voltage across the two pins from the nets | Rated voltage is above the DC voltage across that capacitor | Rated voltage is below the DC voltage across it, or the rating is not printed and no datasheet was opened | critical when both voltages are known and the rating is lower; not verifiable when the rating is missing | Capacitor DS voltage rating |
 | Inductor saturation | Buck, boost, or SEPIC | L, f, Vin, Vout from schematic; Isat from inductor BOM line | Isat ≥ calculated peak switch current (DC + ripple/2) | Isat < calculated peak | critical when the calculation inputs are all on the schematic or BOM | Inductor DS saturation-current spec |
 | Adjustable setpoint | Regulator with an external feedback divider | Resistor values on the FB node; Vref and the DS equation | Computed Vout is within 2% of the schematic rail name, and < abs-max of every IC on that rail | Computed Vout is outside 2%, or above a cited abs-max | critical only when computed Vout exceeds a cited abs-max; otherwise warning | Regulator DS feedback equation and load IC absolute-maximum table |
 | Reverse input | External DC jack, battery, or unprotected VBUS into silicon | Connector pin net traced to the first series element | A series MOSFET, ideal diode, or diode rated for the input blocks reverse current before any pin whose abs-max is 0 V reverse | The connector net reaches an IC pin with no series element, and that pin's abs-max is not rated for reverse | critical when pinout and abs-max are both cited | Connector pinout; IC absolute-maximum ratings |
@@ -62,3 +62,41 @@ Battery, 4G burst, and motor-stall checks stay in `references/conditional-review
 | Firmware-off safe state | Charger, PMIC, or boost the user says is configured in firmware | Default register or strap state from the DS, and EN nets | With no firmware, EN and default registers stay inside the safe ranges in the DS | The DS default enables charging, a boost, or a load that the hardware text says firmware must turn on | warning; critical if the default exceeds a cited battery or abs-max limit | DS power-on default / register reset table |
 
 Layout spacing, copper weight, and creepage in millimetres are PCB evidence. On a schematic-only review those rows are `not verifiable`, not a pass.
+
+## 6. Resistors and capacitor bias
+
+Check every resistor that has a printed value, and every capacitor that sees a DC voltage. A value you cannot read is `not verifiable` for that reference. Do not pass the rest of the board as a substitute.
+
+### E96 resistors
+
+Compare the resistance to IEC 60063 E96. Divide by decades until the mantissa is in `[1.00, 10.00)`. It must equal one of these numbers, not a nearby E24 number. `2.2` is not `2.21`. `4.7` is not `4.75`.
+
+`1.00 1.02 1.05 1.07 1.10 1.13 1.15 1.18 1.21 1.24 1.27 1.30 1.33 1.37 1.40 1.43 1.47 1.50 1.54 1.58 1.62 1.65 1.69 1.74 1.78 1.82 1.87 1.91 1.96 2.00 2.05 2.10 2.15 2.21 2.26 2.32 2.37 2.43 2.49 2.55 2.61 2.67 2.74 2.80 2.87 2.94 3.01 3.09 3.16 3.24 3.32 3.40 3.48 3.57 3.65 3.74 3.83 3.92 4.02 4.12 4.22 4.32 4.42 4.53 4.64 4.75 4.87 4.99 5.11 5.23 5.36 5.49 5.62 5.76 5.90 6.04 6.19 6.34 6.49 6.65 6.81 6.98 7.15 7.32 7.50 7.68 7.87 8.06 8.25 8.45 8.66 8.87 9.09 9.31 9.53 9.76`
+
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Resistor is E96 | Every resistor with a value, including DNP parts that print one | Schematic value, or the BOM resistance and tolerance when the BOM is in the review | Mantissa is in the E96 list above. A stated tolerance is ±1% or tighter. `0 Ω` is a jumper and is not scored | Mantissa is not in the list, or the stated tolerance is wider than ±1% | warning. One finding per off-grid value, naming every reference that uses it | IEC 60063 E96 |
+
+A value that a cited IC equation requires exactly, and that is not on the list, is an explicit accept for that reference. Name the equation. Do not silently treat it as E96.
+
+### Capacitor DC bias
+
+The voltage-rating row in section 1 still applies to every capacitor. DC bias is a second check of the capacitance that remains at that voltage.
+
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Class II DC bias | X5R, X7R, X6S, X7S, Y5V, or any ceramic that is not C0G/NP0 | Rated voltage, dielectric, rail or pin-to-pin DC voltage, and the capacitor DC-bias curve | At the actual DC voltage, the curve still provides the capacitance the circuit or the IC datasheet requires | No bias curve was opened, or the remaining capacitance is below the required value. A rating under 2× the DC bias does not pass without that curve | warning. Critical only when the remaining capacitance contradicts a value the IC datasheet requires and both numbers are cited | Capacitor DS DC-bias curve |
+| Class I bias | C0G or NP0 | Dielectric on the BOM or schematic | DC-bias loss is not a finding. The voltage-rating row still applies | Dielectric is unmarked, so the part was treated as Class II | not verifiable until the dielectric is known | Capacitor DS dielectric |
+| Polarized derating | Electrolytic or tantalum with a DC voltage across it | Rated voltage and the DC bias | Tantalum DC bias ≤ 50% of rated voltage. Electrolytic DC bias ≤ 80% of rated voltage, and below the rating | Tantalum bias above half the rating, or electrolytic bias above 80% of the rating | warning; critical when bias exceeds the rated voltage | Capacitor DS voltage-derating section |
+
+## 7. MCU and SoC minimum system
+
+Trigger on every microcontroller and every SoC in the design. Open that part's datasheet minimum-system or hardware-design figure. Check every part on that figure for the features this design uses. An internal oscillator or an internal reset passes only when the figure or the clock/reset section says that option is valid and the pins are tied the way that option requires. If the figure was not opened, this coverage row is `not verifiable`. Do not mark it confirmed from the crystal row or the boot-strap row alone.
+
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Supply capacitors | Each VDD, VDDIO, VDDA, VDD_CORE, or VCAP pin the figure shows | `net_pins` of that pin and the capacitors on it | Value, count, and dielectric match the figure or the power-pin table | A listed supply pin has no capacitor, or the value contradicts the table | critical with netlist and the table; warning on PDF | DS power supply / minimum system |
+| Reset | NRST, RESET, or nPOR on the figure | `pin_net` and the resistor, capacitor, or supervisor on that net | The net matches the figure, including a required pull-up or capacitor | The pin floats, or a part shown on the figure is absent | warning; critical when the datasheet says an open reset pin prevents boot and the netlist shows it open | DS reset / minimum system |
+| Clock | Clock pins on the figure | Crystal, oscillator, or the internal-clock tie | Load capacitors match the crystal CL row in section 2, or the internal clock is selected and the pins are tied as that section requires | The boot source needs a crystal and the pins have none, or the load capacitors contradict the crystal | warning | DS oscillator section |
+| Boot and debug | Strap pins and the programming pins the figure shows | Strap row in section 2, and the programming-header row in section 5 | Both rows pass for this part | Either row fails | The severity of the failed row | DS boot table; DS debug pinout |
+| Figure parts | Any other part drawn on the minimum-system figure for a feature this design uses | That reference's net | The part is present at the value the figure prints | The figure shows it and the net does not | warning | DS minimum-system figure |

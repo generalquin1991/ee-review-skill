@@ -224,6 +224,13 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("not verifiable", contract)
         self.assertIn("This skill does not include a distributor client", contract)
         self.assertIn("EMC and safety applicability (private)", matrix)
+        schematic = (ROOT / "references" / "schematic-review.md").read_text(encoding="utf-8")
+        self.assertIn("Resistor is E96", schematic)
+        self.assertIn("2.2` is not `2.21", schematic)
+        self.assertIn("Class II DC bias", schematic)
+        self.assertIn("MCU and SoC minimum system", schematic)
+        self.assertIn("E96 resistors", matrix)
+        self.assertIn("MCU/SoC minimum system", matrix)
         self.assertIn("That choice is not a slide", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
 
 

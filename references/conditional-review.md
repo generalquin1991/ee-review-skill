@@ -313,6 +313,14 @@ or reinterpret the acronym from memory. At minimum, map the baseline to:
 If the CERE document, revision, or acceptance data is missing, add a
 `not verifiable` finding rather than claiming compliance.
 
+### Passives and minimum systems
+
+When the schematic or BOM contains resistors, check every printed value against IEC 60063 E96 as specified in `references/schematic-review.md`. `0 Ω` is a jumper. A non-E96 value is a finding unless a cited IC equation requires that exact value.
+
+When capacitors are present, check the voltage rating of every capacitor against the DC voltage across it, and the DC-bias loss of every Class II ceramic. C0G/NP0 does not get a bias-loss finding. Electrolytic and tantalum parts use the derating in that same section. A missing voltage rating is `not verifiable` for that capacitor.
+
+When the design contains a microcontroller or an SoC, check that part's minimum system against its datasheet figure: supply capacitors, reset, clock, boot straps, debug pins, and every other part the figure shows for a feature this design uses. No MCU or SoC in the design means `not applicable`. The figure was not opened means `not verifiable`.
+
 ## Required Report Coverage
 
 The final report must include a short coverage table, even when a feature is
@@ -336,6 +344,9 @@ absent:
 | Firmware-HW co-verification | any HW gated by firmware | confirmed/finding/not applicable/not verifiable | location |
 | Component availability (sourcing) | BOM/component list or N/A evidence | confirmed/finding/not applicable/not verifiable | location / primary source |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
+| E96 resistors | resistors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | off-grid references |
+| Capacitor voltage and DC bias | capacitors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | capacitor references |
+| MCU/SoC minimum system | an MCU or SoC, else not applicable | confirmed/finding/not applicable/not verifiable | datasheet figure and the pins |
 
 The coverage table is not a substitute for dimension findings. It is the audit
 trail proving that conditional checks were considered.

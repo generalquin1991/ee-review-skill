@@ -128,7 +128,10 @@ project-specific CERE requirement. Apply every matching conditional checklist.
 Record each checklist row with the six fields in `references/review-contract.md`.
 Regardless of detected features, also record ESD, low-power, EMC, electrical safety,
 thermal, DFM/DFT, firmware-hardware co-verification, component availability, and the
-project power baseline.
+project power baseline. When resistors or capacitors are present, also record the
+E96 resistor check and the capacitor voltage-rating plus DC-bias check. When an
+MCU or SoC is present, record its minimum-system check against that part's
+datasheet figure.
 
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 `confirmed` cites the evidence file. If the evidence is missing, status is

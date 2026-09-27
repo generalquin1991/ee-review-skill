@@ -59,6 +59,15 @@ PACK nets, or battery-related BOM text. Review all of the following:
 - **Power-path behavior:** charge and system-load sharing, load transients while
   charging, brownout during cable insertion/removal, reverse current, and
   behavior when the battery is absent or deeply discharged.
+- **Charge by default:** apply the charge-by-default row in
+  `references/schematic-review.md`. Plugging in the adapter must start a charge
+  that the cell datasheet allows, without the host running.
+- **Power path and full charge:** apply that row in `references/schematic-review.md`.
+  Decide from the nets whether the running load shares the cell or is fed from
+  the adapter on a separate power-path pin. A shared cell node charges to full
+  only when the on-state load is below the termination current. Name the
+  missing running-load current as `not verifiable` instead of assuming the cell
+  finishes.
 - **Power-tree topology:** draw the power tree, then apply the regulator-under-source-sag row in `references/schematic-review.md` to every regulator on the cell. Any high-peak load on that cell sets the sag, including audio, a motor, a radio burst, or another cited peak. The cell is one upstream node; the same row also covers VBUS, an adapter, and an intermediate rail.
 - **Thermal/mechanical evidence:** cell temperature rise at peak load/charge,
   sensor coupling to the cell, enclosure hot spots, and safe spacing from heat
@@ -348,6 +357,12 @@ absent:
 | E96 resistors | resistors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | off-grid references |
 | Capacitor voltage and DC bias | capacitors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | capacitor references |
 | MCU/SoC minimum system | an MCU or SoC, else not applicable | confirmed/finding/not applicable/not verifiable | datasheet figure and the pins |
+| IO level | a net joining two logic pins | confirmed/finding/not applicable/not verifiable | driver and receiver |
+| Charge by default | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | CE/EN or power-on default |
+| Power path and full charge | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | SYS net versus battery net |
+| I2C addresses | an I2C bus, else not applicable | confirmed/finding/not applicable/not verifiable | bus, device, 7-bit address |
+| Clock rework footprint | a clock toward memory, a display, a camera, or another hard-to-rework interface | confirmed/finding/not applicable/not verifiable | clock net |
+| High-speed termination | a net whose datasheet shows source or end termination | confirmed/finding/not applicable/not verifiable | net and the cited network |
 
 The coverage table is not a substitute for dimension findings. It is the audit
 trail proving that conditional checks were considered.

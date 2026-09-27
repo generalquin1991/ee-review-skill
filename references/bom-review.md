@@ -13,6 +13,8 @@ When evidence exists, read it in this order: LCSC (szlcsc) first, then Digi-Key,
 | MPN is orderable | Every BOM line for an assembled part | BOM manufacturer part number field | The MPN includes the ordering suffix (package, temperature, packing) and matches the manufacturer page you opened | The MPN is truncated, or the page's package suffix differs from the footprint | critical when the page shows a different package (for example LQFP48 vs LQFP64); warning when the suffix is simply missing | Manufacturer ordering guide |
 | Second source | MCU, PMIC, memory, or a custom connector | BOM AVL column or a note | A second MPN is listed and its package drawing matches the footprint, or the user marked the part sole-source on purpose | No second source and no sole-source note | warning. Sole-source is not Critical by itself | Second-source package drawing |
 
+A substitute you propose for a key part is not a finding until the user confirms that exact manufacturer part number. Key parts include the MCU, SoC, PMIC, memory, charger, radio, display, camera, NAND, and a sole connector. Ask once per candidate. Silence or a refusal leaves the recommendation out of the HTML report and the PPT.
+
 ### Lifecycle words, only after the page shows them
 
 | Status on the page | Result |

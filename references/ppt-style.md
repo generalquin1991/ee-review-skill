@@ -14,7 +14,7 @@ python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYY
 
 A slide needs a concrete location (reference designator, net, or a datasheet table row) and one verdict sentence. That includes an explicit accept. `not verifiable`, a missing file, the coverage table, and S/A/B/C grades stay in the HTML report. They do not get a slide.
 
-The deck body is the circuit, the number, and the verdict. Do not write why the review process included the item. Forbidden wording includes "according to the review rules", the skill name, the checklist, the coverage table, sign-off, and the grade labels Critical, Warning, Info, S, A, B, C, D.
+The deck body is the circuit, the number, and the verdict. Do not write why the review process included the item. Forbidden wording includes "according to the review rules", the skill name, the checklist, the coverage table, sign-off, and the grade labels Critical, Warning, Info, S, A, B, C, D. A proposed alternate part is not a slide until the user has confirmed that exact part.
 
 Which EMC or safety phenomena apply is decided from the schematic and the PRD, when a PRD was provided, using `references/conditional-review.md`. That choice is not a slide and not a sentence. A missing USB, HDMI, or power-entry filter is a slide only as the part and the nets: populated, DNP footprint, or absent.
 

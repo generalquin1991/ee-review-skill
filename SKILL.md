@@ -137,7 +137,14 @@ thermal, DFM/DFT, firmware-hardware co-verification, component availability, and
 project power baseline. When resistors or capacitors are present, also record the
 E96 resistor check and the capacitor voltage-rating plus DC-bias check. When an
 MCU or SoC is present, record its minimum-system check against that part's
-datasheet figure.
+datasheet figure. When logic pins share a net, record the IO-level check. When a
+charger is present, record whether charging starts with no firmware, whether
+the running load is on a power-path pin separate from the cell, and whether the
+cell can reach termination. Each I2C
+bus gets an address list. Clocks toward memory, a display, a camera, or another
+hard-to-rework interface get the rework-footprint check, and a net whose
+datasheet shows source or end termination gets that check. A substitute for a
+key part stays out of the report until the user confirms that exact part.
 
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 `confirmed` cites the evidence file. If the evidence is missing, status is

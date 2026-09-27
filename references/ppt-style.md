@@ -51,7 +51,7 @@ Use only these verdict forms:
 
 Name the part and the parameter when citing a datasheet. Do not write "per the datasheet requirement" with no number.
 
-Figures sit in the template's existing picture frames. The default is one crop on the right: the schematic only around the parts named in the sentence, a datasheet table cropped to the cited rows with `--mark box`, or a PCB crop with `--mark arrow` and a short `--label`. Add a second image only when the same sentence cites both the schematic and a datasheet table. A conclusion with no picture leaves the frame out; do not insert a placeholder icon.
+Figures sit inside the template's existing picture frames. The command fits each picture to its own aspect ratio and centers it in that frame, so a tall crop is not stretched across the wide frame. Use one crop when one location carries the verdict: the schematic only around the parts named in the sentence, a datasheet table cropped to the cited rows with `--mark box`, or a PCB crop with `--mark arrow` and a short `--label`. Use two crops when the sentence depends on two places. A net that crosses boards gets one crop per board: the I2C pins on board A, and the pull-up that sits on board B. A sentence that cites both the schematic and a datasheet row gets both. Do not add a crop the sentence does not use. A slide has two frames; further crops continue on the next slide with the same eyebrow and subtitle. A conclusion with no picture leaves the frame out; do not insert a placeholder icon.
 
 The text command keeps the template typeface and size. If the body does not fit, the command continues it on the next slide with the same eyebrow and subtitle. Do not shrink the type, and do not add a label that says the slide is a continuation.
 

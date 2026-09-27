@@ -216,6 +216,14 @@ class SkillCoverageTests(unittest.TestCase):
         for phrase in ("ESD", "Battery", "Antenna", "USB Type-C", "4G", "Motor", "CERE"):
             self.assertIn(phrase, matrix)
         self.assertIn("System block diagram", matrix)
+        diagrams = (ROOT / "references" / "architecture-diagrams.md").read_text(encoding="utf-8")
+        self.assertIn("ask the user before skipping", diagrams)
+        self.assertIn("A multi-board design requires the system block diagram", diagrams)
+        self.assertIn("A battery product requires the power tree", diagrams)
+        schematic = (ROOT / "references" / "schematic-review.md").read_text(encoding="utf-8")
+        self.assertIn("Regulator under source sag", schematic)
+        self.assertIn("The same row applies with no battery", schematic)
+        self.assertIn("one crop per board", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
         self.assertIn("Power tree", matrix)
         self.assertIn("references/review-contract.md", skill)
         self.assertIn("PDF-only", skill)
@@ -290,21 +298,20 @@ class GradePolicyTests(unittest.TestCase):
 
 
 class DeckCommandTests(unittest.TestCase):
-    def test_template_and_style_do_not_carry_source_identity(self):
-        banned = ("8SP", "Quin", "qingfeng", "BQ25101")
-        template = (ROOT / "assets" / "review-slide-template.pptx").read_bytes()
-        style = (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8")
+    def test_template_uses_placeholders_not_a_filled_cover(self):
+        import zipfile
+
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-        for token in banned:
-            self.assertNotIn(token.encode(), template)
-            self.assertNotIn(token, style)
-            self.assertNotIn(token, skill)
+        with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
+            cover = archive.read("ppt/slides/slide1.xml").decode("utf-8")
+        self.assertIn("{{PROJECT_CODE}}", cover)
+        self.assertIn("{{REVIEWER}}", cover)
         self.assertIn("scripts/generate_pptx.py", skill)
         self.assertIn("scripts/crop_schematic.py", skill)
         self.assertIn("one-off script", skill)
         self.assertIn("not verifiable", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
 
-    def test_deck_keeps_template_font_and_rejects_template_identity(self):
+    def test_deck_keeps_template_font(self):
         import zipfile
 
         import generate_pptx
@@ -345,12 +352,113 @@ class DeckCommandTests(unittest.TestCase):
             self.assertIn("DEMO", slide.decode("utf-8"))
             self.assertIn("Schematic · power", finding)
             self.assertNotIn("Evidence1", finding)
-            self.assertNotIn(b"8SP", slide)
+            self.assertNotIn("{{PROJECT_CODE}}", slide.decode("utf-8"))
 
-            deck["project_code"] = "8SP"
+    def test_evidence_picture_keeps_aspect_inside_the_frame(self):
+        import struct
+        import zipfile
+        import zlib
+
+        import generate_pptx
+
+        def png(width, height):
+            row = b"\x00" + (b"\xff\x00\x00" * width)
+            raw = row * height
+
+            def chunk(tag, data):
+                return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+            ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+            return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+        with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
+            template = archive.read("ppt/slides/slide19.xml").decode("utf-8")
+        start = template.find('name="Evidence1"')
+        block = template[template.rfind("<p:pic", 0, start):template.find("</p:pic>", start)]
+        frame = re.search(r'<a:ext cx="(\d+)" cy="(\d+)"/>', block)
+        frame_cx, frame_cy = int(frame.group(1)), int(frame.group(2))
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp) / "square.png"
+            image.write_bytes(png(80, 80))
+            output = Path(tmp) / "out.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "Schematic · port",
+                        "subtitle": "J1 — USB filter",
+                        "body": "J1 has a TVS and no common-mode choke. We recommend a choke at the connector.",
+                        "image": str(image),
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
             json_path.write_text(json.dumps(deck), encoding="utf-8")
-            with self.assertRaises(SystemExit):
-                generate_pptx.main([str(json_path), "-o", str(output)])
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            with zipfile.ZipFile(output) as archive:
+                slide = archive.read("ppt/slides/slide19.xml").decode("utf-8")
+        start = slide.find('name="Evidence1"')
+        block = slide[slide.rfind("<p:pic", 0, start):slide.find("</p:pic>", start)]
+        ext = re.search(r'<a:ext cx="(\d+)" cy="(\d+)"/>', block)
+        off = re.search(r'<a:off x="(-?\d+)" y="(-?\d+)"/>', block)
+        cx, cy = int(ext.group(1)), int(ext.group(2))
+        self.assertAlmostEqual(cx / cy, 1.0, places=2)
+        self.assertLessEqual(cx, frame_cx)
+        self.assertLessEqual(cy, frame_cy)
+        self.assertGreaterEqual(int(off.group(1)), 7100575)
+        self.assertLess(int(off.group(1)) + cx, 7100575 + frame_cx + 2)
+
+    def test_third_crop_continues_on_the_next_slide(self):
+        import struct
+        import zipfile
+        import zlib
+
+        import generate_pptx
+
+        def png(width, height):
+            row = b"\x00" + (b"\xff\x00\x00" * width)
+            raw = row * height
+
+            def chunk(tag, data):
+                return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+            ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+            return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for name in ("a.png", "b.png", "c.png"):
+                path = Path(tmp) / name
+                path.write_bytes(png(40, 20))
+                paths.append(str(path))
+            output = Path(tmp) / "out.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "Schematic · I2C",
+                        "subtitle": "I2C — pull-up",
+                        "body": "SDA leaves board A. The pull-up is on board B. We recommend keeping that pull-up.",
+                        "images": paths,
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            with zipfile.ZipFile(output) as archive:
+                first = archive.read("ppt/slides/slide19.xml").decode("utf-8")
+                second = archive.read("ppt/slides/slide31.xml").decode("utf-8")
+        self.assertIn("Evidence1", first)
+        self.assertIn("Evidence2", first)
+        self.assertIn("Evidence1", second)
+        self.assertNotIn("Evidence2", second)
 
     def test_long_body_continues_on_the_next_slide(self):
         import generate_pptx

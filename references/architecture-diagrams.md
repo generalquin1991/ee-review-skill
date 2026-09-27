@@ -1,10 +1,18 @@
 # Architecture diagrams
 
-## When they are required
+## When to draw
 
-Produce both diagrams before checklist findings only when the review inputs include a schematic (PDF or schematic source) or a netlist. Put the `.dot`, `.png`, and `.svg` files in the project directory next to those sources.
+A multi-board design requires the system block diagram. Do not ask to skip it. One block cluster per board, and every net that leaves one board for another (I2C, power, reset, a bus) is an edge labelled with that net. If the other board's schematic is not in the review, the row is `not verifiable` and you ask for that schematic. Do not invent the other board.
 
-If the review is BOM-only, Gerber-only, or a PCB layout with no schematic and no netlist, do not draw an architecture inferred from the parts list. Coverage status for both rows is `not applicable`, evidence `no schematic or netlist in this review`.
+For a single board, decide separately for the system block diagram and the power tree. Draw a diagram when the topology would change a finding: more than one power stage, more than one functional module, or a conclusion that depends on which block or rail feeds another. A single regulator feeding one IC, or a diagram the user already supplied, does not need a new drawing.
+
+If you decide a single-board diagram is not needed, ask the user before skipping it. Do not mark that coverage row `not applicable` until they confirm. If they say to draw it, draw it. If they confirm the skip, status is `not applicable` and the evidence is their confirmation. The power tree of a multi-board design still follows this ask-before-skip rule, except that a battery product requires the power tree. The system block diagram does not.
+
+A battery product requires the power tree. Do not ask to skip it. After any power tree is drawn, review every regulator against source sag in `references/schematic-review.md`. The sag is the voltage drop at the shared upstream node under the highest peak on that node, including a cell, VBUS, an adapter, a cable, or an intermediate rail.
+
+BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a drawing from the parts list. Ask the user. If they want the diagram, ask for a schematic or a netlist first. Evidence when there is still nothing to draw from: `no schematic or netlist in this review`.
+
+When you do draw one, put the `.dot`, `.png`, and `.svg` files in the project directory next to the schematic or netlist, before checklist findings. If you decided the diagram is needed and the file is missing, that row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
 
 **Format: Graphviz DOT (`.dot`), rendered with `dot`.** Do not substitute drawio, a hand-drawn SVG, or a PNG with no `.dot` source. Always ship the `.dot` plus rendered `.png` and `.svg`.
 

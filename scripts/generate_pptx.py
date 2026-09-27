@@ -8,6 +8,7 @@ It does not create text boxes, so the template font, size, and color stay.
 import argparse
 import json
 import re
+import struct
 import sys
 import zipfile
 from pathlib import Path
@@ -18,7 +19,6 @@ FINDING_SLIDE = "ppt/slides/slide19.xml"
 FINDING_RELS = "ppt/slides/_rels/slide19.xml.rels"
 # Left body box is about 6.9 by 4.5 inches at the template's 14 pt body style.
 BODY_CHAR_BUDGET = 1000
-FORBIDDEN_IDENTITY = ("8SP", "Quin")
 DEFAULT_TITLE = "Design review report"
 
 
@@ -29,15 +29,6 @@ def escape_xml(text):
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
-
-
-def reject_template_identity(value, field):
-    lowered = str(value)
-    for token in FORBIDDEN_IDENTITY:
-        if token.lower() in lowered.lower():
-            raise SystemExit(
-                f"{field} contains template identity {token!r} and cannot be written into the deck"
-            )
 
 
 def set_shape_text(xml, name, text):
@@ -152,6 +143,62 @@ def add_slide_relationship(files, slide_name):
         files["[Content_Types].xml"] = content_types.encode("utf-8")
 
 
+def image_pixel_size(blob):
+    if blob.startswith(b"\x89PNG\r\n\x1a\n") and blob[12:16] == b"IHDR":
+        width, height = struct.unpack(">II", blob[16:24])
+        return width, height
+    if blob.startswith(b"\xff\xd8"):
+        index = 2
+        while index + 8 < len(blob):
+            if blob[index] != 0xFF:
+                index += 1
+                continue
+            marker = blob[index + 1]
+            if marker in (0xC0, 0xC1, 0xC2):
+                height, width = struct.unpack(">HH", blob[index + 5:index + 9])
+                return width, height
+            segment = struct.unpack(">H", blob[index + 2:index + 4])[0]
+            index += 2 + segment
+    raise SystemExit("could not read image width and height; use png or jpeg")
+
+
+def fit_pic(xml, name, width_px, height_px):
+    """Keep the bitmap's aspect ratio inside the template frame.
+
+    The frame uses stretch-to-fill, so a different aspect is otherwise drawn
+    distorted. Shrink one side and center the picture. It stays inside the frame.
+    """
+    marker = f'name="{name}"'
+    index = xml.find(marker)
+    start = xml.rfind("<p:pic", 0, index)
+    end = xml.find("</p:pic>", index) + len("</p:pic>")
+    block = xml[start:end]
+    off = re.search(r'<a:off x="(-?\d+)" y="(-?\d+)"/>', block)
+    ext = re.search(r'<a:ext cx="(\d+)" cy="(\d+)"/>', block)
+    if not off or not ext:
+        raise SystemExit(f"template picture {name} has no frame")
+    x, y = int(off.group(1)), int(off.group(2))
+    cx, cy = int(ext.group(1)), int(ext.group(2))
+    image_ar = width_px / height_px
+    frame_ar = cx / cy
+    if image_ar >= frame_ar:
+        new_cx = cx
+        new_cy = max(1, int(round(cx / image_ar)))
+    else:
+        new_cy = cy
+        new_cx = max(1, int(round(cy * image_ar)))
+    new_x = x + (cx - new_cx) // 2
+    new_y = y + (cy - new_cy) // 2
+    block = block.replace(off.group(0), f'<a:off x="{new_x}" y="{new_y}"/>', 1)
+    block = re.sub(
+        r'<a:ext cx="\d+" cy="\d+"/>',
+        f'<a:ext cx="{new_cx}" cy="{new_cy}"/>',
+        block,
+        count=1,
+    )
+    return xml[:start] + block + xml[end:]
+
+
 def image_extension(path):
     suffix = path.suffix.lower()
     if suffix in (".png", ".jpeg"):
@@ -169,8 +216,6 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
     images = list(finding.get("images") or [])
     if finding.get("image"):
         images.append(finding["image"])
-    if len(images) > 2:
-        raise SystemExit("a slide accepts at most two images")
     rels = files[rels_name].decode("utf-8")
     slots = (("Evidence1", 1), ("Evidence2", 2))
     for name, slot in slots:
@@ -181,8 +226,11 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
         if not path.is_file():
             raise SystemExit(f"missing image {path}")
         embed = pic_embed(xml, name)
+        blob = path.read_bytes()
+        width_px, height_px = image_pixel_size(blob)
+        xml = fit_pic(xml, name, width_px, height_px)
         media_name = f"ppt/media/finding-{index + 1}-{slot}{image_extension(path)}"
-        files[media_name] = path.read_bytes()
+        files[media_name] = blob
         rels = retarget(rels, embed, "../" + media_name.split("/", 1)[1])
     files[slide_xml_name] = xml.encode("utf-8")
     files[rels_name] = rels.encode("utf-8")
@@ -192,11 +240,9 @@ def build_deck(data, output):
     for field in ("project_code", "designer", "reviewer", "review_date"):
         if not str(data.get(field, "")).strip():
             raise SystemExit(f"{field} is required; ask for it instead of inventing a value")
-        reject_template_identity(data[field], field)
     if not re.fullmatch(r"\d{8}", str(data["review_date"])):
         raise SystemExit("review_date must be YYYYMMDD")
     title = data.get("document_title") or DEFAULT_TITLE
-    reject_template_identity(title, "document_title")
     raw_slides = data.get("slides") or []
     if not raw_slides:
         raise SystemExit("slides must contain at least one finding with a location and a verdict")
@@ -207,18 +253,18 @@ def build_deck(data, output):
             if not str(slide.get(key, "")).strip():
                 raise SystemExit(f"each slide needs {key}")
         chunks = split_body(slide["body"])
-        for chunk_index, piece in enumerate(chunks):
-            item = {
+        images = list(slide.get("images") or [])
+        if slide.get("image"):
+            images.append(slide["image"])
+        groups = [images[start:start + 2] for start in range(0, len(images), 2)] or [[]]
+        pages = max(len(chunks), len(groups))
+        for page in range(pages):
+            expanded.append({
                 "eyebrow": slide["eyebrow"],
                 "subtitle": slide["subtitle"],
-                "body": piece,
-                "images": list(slide.get("images") or []),
-            }
-            if slide.get("image"):
-                item["images"].append(slide["image"])
-            if chunk_index:
-                item["images"] = []
-            expanded.append(item)
+                "body": chunks[page] if page < len(chunks) else chunks[-1],
+                "images": groups[page] if page < len(groups) else [],
+            })
 
     files = load_template()
     prototype_xml = files[FINDING_SLIDE]

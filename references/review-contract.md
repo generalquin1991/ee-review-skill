@@ -43,11 +43,11 @@ Training data, memory, and "usually in stock" are not evidence. If the page does
 
 ## Architecture diagrams
 
-Produce the system block diagram and the power tree in `references/architecture-diagrams.md` only when the inputs include a schematic (PDF or schematic source) or a netlist (KiCad XML, `.tel`, `.net`, `.dsn`).
+A multi-board design requires the system block diagram in `references/architecture-diagrams.md`. Do not ask to skip it. A battery product requires the power tree. The source-sag review in `references/schematic-review.md` applies to every shared upstream node, with or without a battery. For a single board that is not battery powered, draw the system block diagram or the power tree when the topology would change a finding. If you decide that diagram is not needed, ask the user before skipping it. The power tree of a non-battery multi-board design still follows that ask.
 
-BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: both coverage rows are `not applicable`, evidence `no schematic or netlist in this review`. Do not infer a block diagram from a parts list.
+BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not infer a block diagram from a parts list. Ask the user, and ask for a schematic or netlist if they want the drawing. After they confirm a skip, or when there is still nothing to draw from, the row is `not applicable`, evidence `no schematic or netlist in this review`.
 
-If a schematic or netlist is in the review and either diagram file is missing, those rows are `not verifiable` and Power Supply Design gets a warning that names the missing `.dot` path. Do not treat a verbal description as the diagram.
+If the diagram is needed and the file is missing, that row is `not verifiable` and Power Supply Design gets a warning that names the missing `.dot` path. Do not treat a verbal description as the diagram.
 
 ## Grade policy
 

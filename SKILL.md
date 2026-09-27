@@ -86,13 +86,19 @@ Both PADS converters fit coordinates against matching reference designators and 
 
 After conversion, use the `.kicad_pcb` and exported files for the review in subsequent steps.
 
-### Step 1.8: Architecture diagrams (schematic or netlist only)
+### Step 1.8: Architecture diagrams
 
-Produce the two Graphviz diagrams in `references/architecture-diagrams.md` only when the inputs include a schematic (PDF or schematic source) or a netlist. Put the `.dot`, `.png`, and `.svg` files next to those sources, then cross-check later findings against them.
+A multi-board design requires the system block diagram in `references/architecture-diagrams.md`. Do not ask to skip it. Show each board and the nets that cross between them.
 
-BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a diagram from the parts list. Mark System block diagram and Power tree `not applicable`, evidence `no schematic or netlist in this review`.
+A battery product requires the power tree. Do not ask to skip it. After a power tree exists, and also when there is no battery, review every regulator against source sag in `references/schematic-review.md`. Any load with a cited peak on the same upstream node pulls that node down. The node may be a cell, VBUS, an adapter, a cable, or an intermediate rail. The regulator's own load can be microamps.
 
-When a schematic or netlist is present and either `.dot` file is missing, those coverage rows are `not verifiable` and Power Supply Design gets a warning that names the missing path.
+For a single board, decide separately whether the system block diagram and the power tree are worth drawing. Draw one when the topology would change a finding: more than one power stage, more than one functional module, or a conclusion that depends on which rail or block feeds another. A single regulator feeding one IC, or a diagram the user already supplied, does not need a new drawing. The power tree of a non-battery design follows this rule even when there are several boards.
+
+If you decide a single-board diagram is not needed, ask the user before skipping it. Do not mark that coverage row `not applicable` until they confirm. If they say to draw it, draw it.
+
+BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a diagram from the parts list. Ask the user. If they want the drawing, ask for a schematic or a netlist first. After they confirm a skip, or when there is still nothing to draw from, evidence is `no schematic or netlist in this review`.
+
+When a diagram is needed and its `.dot` file is missing, that coverage row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
 
 1. **System block diagram** — `<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
 2. **Power tree** — `<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
@@ -104,7 +110,7 @@ dot -Tsvg -o <project>_system_block_diagram.svg <project>_system_block_diagram.d
 # (repeat for <project>_power_tree)
 ```
 
-**Placement:** put the `.dot`/`.png`/`.svg` files in the project directory, next to the schematic or netlist. When Step 1.8 required the diagrams, the coverage table cites those paths. When it did not, the rows stay `not applicable`.
+**Placement:** put the `.dot`/`.png`/`.svg` files in the project directory, next to the schematic or netlist. When a diagram is drawn, the coverage table cites that path. When the user confirmed a skip, the row is `not applicable`.
 
 ### Step 2: Load Reference Checklists
 
@@ -138,8 +144,11 @@ Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 `not verifiable` and the row names the missing file. Do not add a finding or a
 confirmed row whose text is only "checked", "reviewed", or "已检查".
 
-System block diagram and power tree follow Step 1.8: required for a schematic or
-netlist, `not applicable` otherwise. Availability follows the distributor rule in
+System block diagram and power tree follow Step 1.8. A multi-board design
+requires the system block diagram. A battery product requires the power tree
+and the source-sag review in `references/schematic-review.md`, which also applies when there is no battery. Any other diagram is drawn when the topology
+would change a finding, and you ask the user before skipping one you think is
+unnecessary. Availability follows the distributor rule in
 the review contract: no fetched page and no dated user export means
 `not verifiable`, not a stock number from memory.
 
@@ -461,7 +470,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
 - `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
-- `architecture-diagrams.md` - Graphviz format for the system block diagram and power tree. Required only when the review includes a schematic or a netlist (Step 1.8).
+- `architecture-diagrams.md` - Graphviz format for the system block diagram and power tree. A multi-board design requires the system block diagram. Otherwise draw one when the topology would change a finding, and ask the user before skipping it (Step 1.8).
 - `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures. When a PADS or Altium schematic is not parsed by the bundled tools, ask for a netlist or BOM export using this guide instead of writing a parser.
 - `ppt-style.md` - How to fill the review deck: cover fields, which conclusions become slides, and the two commands that produce figures and the PPT.
 

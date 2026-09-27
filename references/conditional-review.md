@@ -6,7 +6,7 @@ Use this matrix for every hardware review. Record each item with the six fields 
 
 Before scoring an electrical dimension, record where each of these came from. If the file is missing, the coverage row is `not verifiable` and names the missing file. Do not add a finding that only says the item was checked.
 
-1. **System block diagram and power tree** — required only when the inputs include a schematic or a netlist. Follow `references/architecture-diagrams.md` and `references/review-contract.md`. BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: both rows are `not applicable`, evidence `no schematic or netlist in this review`.
+1. **System block diagram and power tree** — a multi-board design requires the system block diagram (`references/architecture-diagrams.md`); do not ask to skip it. A battery product requires the power tree. The source-sag row in `references/schematic-review.md` applies to every shared upstream node, with or without a battery. Otherwise decide each diagram, draw it when the topology would change a finding, and ask the user before skipping one you think is unnecessary. BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a drawing; ask, and use `no schematic or netlist in this review` only after they confirm a skip or there is still nothing to draw from.
 2. **Operating envelope** — input range, battery range, temperature, peak and steady loads, startup and shutdown. If the user did not provide it, claims about margin stay `not verifiable`.
 3. **Compliance target** — ESD level, emissions class, safety class, or a named project baseline such as CERE. If unnamed, do not invent one.
 
@@ -59,6 +59,7 @@ PACK nets, or battery-related BOM text. Review all of the following:
 - **Power-path behavior:** charge and system-load sharing, load transients while
   charging, brownout during cable insertion/removal, reverse current, and
   behavior when the battery is absent or deeply discharged.
+- **Power-tree topology:** draw the power tree, then apply the regulator-under-source-sag row in `references/schematic-review.md` to every regulator on the cell. Any high-peak load on that cell sets the sag, including audio, a motor, a radio burst, or another cited peak. The cell is one upstream node; the same row also covers VBUS, an adapter, and an intermediate rail.
 - **Thermal/mechanical evidence:** cell temperature rise at peak load/charge,
   sensor coupling to the cell, enclosure hot spots, and safe spacing from heat
   sources.

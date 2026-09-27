@@ -68,6 +68,10 @@ PACK nets, or battery-related BOM text. Review all of the following:
   only when the on-state load is below the termination current. Name the
   missing running-load current as `not verifiable` instead of assuming the cell
   finishes.
+- **Pack protection and PTC:** when the cell connector goes to the charger
+  without a protection IC or back-to-back FETs on this board, ask whether the
+  pack includes a protection board and a series PTC. Apply that row in
+  `references/schematic-review.md`. The charger's TEMP/NTC pin is not the PTC.
 - **Power-tree topology:** draw the power tree, then apply the regulator-under-source-sag row in `references/schematic-review.md` to every regulator on the cell. Any high-peak load on that cell sets the sag, including audio, a motor, a radio burst, or another cited peak. The cell is one upstream node; the same row also covers VBUS, an adapter, and an intermediate rail.
 - **Thermal/mechanical evidence:** cell temperature rise at peak load/charge,
   sensor coupling to the cell, enclosure hot spots, and safe spacing from heat
@@ -360,6 +364,7 @@ absent:
 | IO level | a net joining two logic pins | confirmed/finding/not applicable/not verifiable | driver and receiver |
 | Charge by default | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | CE/EN or power-on default |
 | Power path and full charge | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | SYS net versus battery net |
+| Pack protection and PTC | a cell connector without a protector on this board | confirmed/finding/not applicable/not verifiable | pack drawing or the user's answer |
 | I2C addresses | an I2C bus, else not applicable | confirmed/finding/not applicable/not verifiable | bus, device, 7-bit address |
 | Clock rework footprint | a clock toward memory, a display, a camera, or another hard-to-rework interface | confirmed/finding/not applicable/not verifiable | clock net |
 | High-speed termination | a net whose datasheet shows source or end termination | confirmed/finding/not applicable/not verifiable | net and the cited network |

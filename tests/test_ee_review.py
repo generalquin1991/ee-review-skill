@@ -227,6 +227,7 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("I2C addresses", schematic)
         self.assertIn("Charge by default", schematic)
         self.assertIn("Power path and full charge", schematic)
+        self.assertIn("Pack protection and PTC", schematic)
         self.assertIn("Clock rework footprint", schematic)
         self.assertIn("High-speed termination", schematic)
         self.assertIn("not a finding until the user confirms", (ROOT / "references" / "bom-review.md").read_text(encoding="utf-8"))

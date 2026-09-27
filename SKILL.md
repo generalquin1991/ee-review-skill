@@ -140,7 +140,9 @@ MCU or SoC is present, record its minimum-system check against that part's
 datasheet figure. When logic pins share a net, record the IO-level check. When a
 charger is present, record whether charging starts with no firmware, whether
 the running load is on a power-path pin separate from the cell, and whether the
-cell can reach termination. Each I2C
+cell can reach termination. If the cell connector has no protection IC on
+this board, ask whether the pack has a protection board and a PTC before
+treating the cell as protected. Each I2C
 bus gets an address list. Clocks toward memory, a display, a camera, or another
 hard-to-rework interface get the rework-footprint check, and a net whose
 datasheet shows source or end termination gets that check. A substitute for a

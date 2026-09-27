@@ -155,6 +155,138 @@ inductive-load BOM description. Review:
 Use the worst-case stalled or jammed condition for the power-stability review;
 the no-load motor current is not sufficient evidence.
 
+### Low-Power Design (power-constrained designs)
+
+Trigger on any battery, cell/pack, Li-Po, wearable, portable, always-on,
+energy-harvesting design, or an explicit "low-power"/"sleep"/"standby" requirement,
+or a DC/DC/regulator whose quiescent current is called out. Review all of the
+following:
+
+- **Sleep / standby budget:** sum every block's sleep and standby current and the
+  always-on leakage; compare the standby total against cell capacity and the
+  product's standby-life target. A design is not "low-power" merely because the
+  active current is small.
+- **Floating / unused pins:** unused CMOS inputs must be tied high/low or
+  firmware-disabled — floating inputs leak and emit EMI. Verify no resistor-
+  divider bias leaves a pin near Vdd/2 (the region of maximum leakage).
+- **Pull-resistor leakage vs. noise:** weak pull-ups cut leakage but slow edges;
+  confirm pull values are chosen for the lowest-leakage acceptable speed, not a
+  blanket 4.7k.
+- **Power-gated domains:** loads switched by load switch/FET must be truly
+  isolated when off — no sneak path through protection diodes, rail pull-ups, or
+  unpowered bidirectional IO back-driving the rail. Verify the gate/EN default
+  state (an active-low enable needs a pulldown so it stays off until firmware
+  acts). A regulator left enabled "just in case" defeats the gate.
+- **Regulator quiescent current & light-load efficiency:** the always-on rail
+  must use a nano-Iq LDO/PMIC; switching regulators must keep acceptable
+  efficiency at the typical light-load current, not only at full load.
+- **Always-on domain minimization:** keep the always-on domain (e.g. BLE/PMIC)
+  as small as possible; high-power domains (camera, boost, backlight) must be
+  enabled only on demand and never fed from an always-on rail.
+- **RTC / backup domain:** backup/RTC supply must not quietly drain the main
+  cell; confirm a ship/storage mode exists so the cell is not deeply discharged
+  during shipping/shelf storage.
+- **Measurement discipline:** require a measured sleep/standby current, not a
+  nominal datasheet sum. Mark unverified sleep claims as `not verifiable`.
+
+If a power budget or measured standby current is unavailable for a triggered
+design, report low-power as `not verifiable` and name the missing evidence.
+
+### EMC / EMI (radiated & conducted emissions, immunity)
+
+Trigger on any clock above ~1 MHz, switching regulator/DC-DC, radio (BLE/Wi-Fi/
+cellular/GNSS), cable/connector (USB, antenna, I/O, power), motor, or an explicit
+emissions/immunity/CISPR/CE/FCC/ISO 11452 target. Review all of the following:
+
+- **Radiated emissions:** clock harmonics, DC/DC switching spectrum, RF spurious,
+  and cable/loop antenna effect. Confirm spread-spectrum is enabled on clock/PLL
+  where available, series damping on clock lines, and routing away from edges/I-O.
+- **Conducted emissions:** noise on power and cable lines; verify pi-filter /
+  ferrite bead / common-mode choke at power entry and on external cables, placed
+  connector-side first.
+- **Immunity:** ESD is handled by the always-on check; confirm surge/burst/
+  radiated-immunity margins for the product environment and that no long
+  unprotected trace precedes a clamp.
+- **Filtering & shielding:** CM chokes on external cables, shield-can / EMI-
+  gasket footprint where required, stitching capacitors across plane splits.
+- **Grounding strategy:** single- vs multi-point ground defined; chassis/ESD
+  return path; no traces crossing ground splits (return-path discontinuity is a
+  leading EMI cause); ground via stitching density.
+- **Layout partitioning:** analog / digital / RF sections separated; mixed-
+  signal IC straddles the boundary intentionally.
+
+If the product names an emissions/immunity class but the design provides no
+filtering/shielding evidence, report EMC/EMI as `not verifiable`.
+
+### Safety / Electrical Safety
+
+Trigger on any mains/AC input, isolation barrier, user-accessible voltage above
+SELV, battery/Li-Po, or high-energy storage. Review:
+
+- **Creepage / clearance:** spacing per applied working voltage and pollution
+  degree (IPC-2221 / IEC 62368-1 / IEC 61010); flag any user-accessible node
+  above SELV.
+- **Isolation barriers:** optocoupler/digital-isolator rated voltage; reinforced
+  vs basic; margin to working and surge voltage.
+- **Over-protection coordination:** fuse/PTC/e-fuse rating and coordination with
+  downstream OVP/OCP, verified against the accessible-voltage class.
+- **Battery safety:** thermal-runaway margin, over-charge/over-discharge/
+  over-current/short/reverse protection, and ship/storage mode; cell + protector
+  + charger coordination.
+- **User-accessible parts:** no exposed live conductor above SELV; enclosure/
+  connector-shell earthing/return path.
+
+If no safety class/baseline is provided, report Safety as `not verifiable`.
+
+### Thermal Management
+
+Trigger on high-power devices, power-dense or enclosed designs, or an explicit
+temperature/derating target. Review:
+
+- **Junction temperature:** estimate via theta-JA and measured/estimated power;
+  margin to the maximum rating at worst ambient.
+- **Board/enclosure hot spots:** copper pour, thermal vias, conductive/air-flow
+  path to case; avoid placing temperature-sensitive parts near power stages.
+- **Power-stage losses:** DC/DC, linear regulator, FET losses and temperature
+  rise at worst duty cycle.
+- **Battery temperature rise:** at peak charge/discharge; coupling to the cell.
+
+If no thermal budget or environment is provided, report Thermal as
+`not verifiable`.
+
+### DFM / DFT (manufacturability & testability)
+
+Trigger on any design going to production (always for new products). Review:
+
+- **Test points & ICT:** test points on every critical net (power, reset, key
+  signals, programming); probe clearance and bed-of-nails access.
+- **Programming / debug access:** SWD/JTAG/UART header present, accessible,
+  keyed; provision for production programming and trim/calibration.
+- **Panelization & process:** fiducials, orientation markings, solder-paste/
+  aperture, assembly orientation; minimum annular ring / mask-sliver margins.
+- **DFT:** boundary-scan/loopback where feasible; calibration/trim access.
+
+If a design omits test access, report DFM/DFT as a finding (production blind
+spots).
+
+### Firmware-Hardware Co-Verification
+
+Trigger on any hardware block whose enable, configuration, or safe operation
+depends on firmware (chargers, PMIC, load switches, boost/buck enable, sensor
+config, security/lock bits). Review:
+
+- **Bring-up sequence specified:** the firmware sequence (register writes, order,
+  timing) that brings the block up must be documented and cross-checked against
+  the datasheet; "it works after FW runs" is a finding, not an assumption.
+- **Safe default state:** the pre-firmware hardware state must be safe — enables
+  pulled to the off/default state, no rail back-driven, no latch-up.
+- **Production / startup flow:** BIST/unlock/calibration (fuel-gauge, charger
+  trim) must be part of the production/startup flow.
+- **Document the dependency** so a "brick without FW" risk is explicit.
+
+If the firmware sequence is not provided, report Firmware-HW co-verification as
+`not verifiable`.
+
 ## CERE and Project-Specific Power Baseline
 
 If the project references **CERE** or another internal power/reliability
@@ -187,6 +319,12 @@ absent:
 | USB-C CC | USB-C trigger or N/A evidence | confirmed/finding/not applicable/not verifiable | location |
 | 4G burst power | modem trigger or N/A evidence | confirmed/finding/not applicable/not verifiable | location |
 | Motor transient power | motor trigger or N/A evidence | confirmed/finding/not applicable/not verifiable | location |
+| Low-power design | battery/portable/always-on or low-power claim | confirmed/finding/not applicable/not verifiable | location |
+| EMC/EMI | any clock/switcher/radio/cable or emission/immunity target | confirmed/finding/not applicable/not verifiable | location |
+| Safety (electrical) | mains/isolation/battery/user-voltage or safety class | confirmed/finding/not applicable/not verifiable | location |
+| Thermal management | high-power/power-dense/enclosure or temp target | confirmed/finding/not applicable/not verifiable | location |
+| DFM/DFT readiness | production design | confirmed/finding/not applicable/not verifiable | location |
+| Firmware-HW co-verification | any HW gated by firmware | confirmed/finding/not applicable/not verifiable | location |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
 
 The coverage table is not a substitute for dimension findings. It is the audit

@@ -139,7 +139,99 @@
 
 ---
 
-## 6. Common Schematic Issues (常见问题)
+## 6. Low-Power Design (低功耗设计)
+
+### 6.1 Sleep / Standby Current Budget
+- Sum every block's sleep and standby current; compare the always-on leakage total against cell capacity and the standby-life target.
+- Require a measured sleep/standby current, not a nominal datasheet sum; mark unverified claims.
+
+### 6.2 Floating & Unused Pins
+- Unused CMOS inputs must be tied high/low or firmware-disabled; floating inputs leak and emit EMI.
+- Avoid resistor-divider bias that leaves a pin near Vdd/2 (region of maximum leakage).
+
+### 6.3 Pull Resistor Leakage vs. Speed
+- Choose weak pull-ups for low leakage where edge speed allows; do not blindly use 4.7k on always-on lines.
+- Confirm pulldowns on unused inputs and on power-gated enable lines.
+
+### 6.4 Power-Gated Domains
+- Loads switched by load switch/FET must be truly isolated when off: no sneak path through protection diodes, rail pull-ups, or unpowered bidirectional IO.
+- Verify EN/gate default state (active-low enable needs a pulldown to stay off until firmware acts).
+
+### 6.5 Regulator Quiescent Current & Light-Load Efficiency
+- Always-on rail must use a nano-Iq LDO/PMIC; switching regulators must keep efficiency at the typical light load, not only at full load.
+- Disabled/unused regulators must be actually off (a regulator left enabled defeats the power gate).
+
+### 6.6 Always-On Domain & RTC/Backup
+- Keep the always-on domain minimal (e.g. BLE/PMIC only); high-power domains (camera, boost, backlight) enabled only on demand, never fed from an always-on rail.
+- Backup/RTC supply must not quietly drain the main cell; confirm ship/storage mode prevents deep discharge during shipping/shelf.
+
+---
+
+## 7. EMC / EMI Design (电磁兼容 - 原理图级)
+
+### 7.1 I/O Filtering at Connector Entry
+- Every external cable/connector (USB, antenna, I/O, power) needs EMC filtering at the entry point: TVS + ferrite bead / RC / common-mode choke, placed connector-side first.
+- Distinguish ESD clamp (fast, low clamp) from EMI filter (common-mode, broadband); one TVS is not both.
+
+### 7.2 Decoupling for EMC
+- Proper decoupling values and dielectric (X7R) on every IC and each rail; high-frequency ceramic close to pins. Decoupling is the first line of radiated-emission control.
+
+### 7.3 Clock EMI
+- Enable spread-spectrum on clock/PLL where available; add series damping resistors on clock lines; avoid unterminated clocks routed near edges or I/O.
+- Keep clock traces short and away from cables/connectors; prefer internal layers.
+
+### 7.4 Switching Regulator EMI
+- Note snubber / bootstrap / switching-frequency choices that affect EMI; synchronous vs asynchronous trade-off; keep switching loops small (a PCB-layout rule, flagged to the layout stage).
+
+### 7.5 Grounding Strategy (defined at schematic)
+- Define AGND/DGND/RF ground relationship and the single-point tie; no net that silently bridges splits. Return-path continuity is the top EMI root cause.
+
+### 7.6 Unused & Floating
+- Tie unused CMOS inputs (floating inputs emit EMI); avoid intermediate-resistor bias near Vdd/2.
+
+---
+
+## 8. Safety / Electrical Safety (电气安全)
+
+### 8.1 Creepage & Clearance
+- Verify spacing per applied working voltage and pollution degree (IPC-2221 / IEC 62368-1); flag any user-accessible node above SELV.
+- Isolation barriers: optocoupler/digital-isolator rated voltage; reinforced vs basic; margin to working/surge voltage.
+
+### 8.2 Over-Protection Coordination
+- Fuse/PTC/e-fuse rating and coordination with downstream OVP/OCP; verify against the accessible-voltage class.
+
+### 8.3 Battery Safety
+- Over-charge/over-discharge/over-current/short/reverse protection; thermal-runaway margin; ship/storage mode present. Cell + protector + charger coordination.
+
+---
+
+## 9. DFM / DFT (可制造可测试)
+
+### 9.1 Test Points & ICT
+- Test points on every critical net (power, reset, key signals, programming); probe clearance and bed-of-nails access.
+
+### 9.2 Programming & Debug Access
+- SWD/JTAG/UART header present, accessible, keyed; provision for production programming and trim/calibration.
+
+### 9.3 Panelization & Process
+- Fiducials, orientation markings, solder-paste/aperture, assembly orientation; minimum annular ring / mask-sliver margins.
+
+---
+
+## 10. Firmware-Hardware Co-Verification (固件-硬件协同)
+
+### 10.1 FW-Dependent Blocks
+- Any block enabled/configured by firmware (charger, PMIC, load switch, boost/buck EN, sensor config) must have its bring-up sequence specified and cross-checked to the datasheet.
+
+### 10.2 Safe Default State
+- Pre-firmware state must be safe: enables pulled to off/default, no rail back-driven, no latch-up.
+
+### 10.3 Production / Startup Flow
+- BIST/unlock/calibration (fuel-gauge, charger trim) must be in the production/startup flow; document the HW-FW dependency so "brick without FW" is explicit.
+
+---
+
+## 11. Common Schematic Issues (常见问题)
 
 | Issue | Severity | Description |
 |-------|----------|-------------|

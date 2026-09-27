@@ -119,6 +119,12 @@ MANDATORY_COVERAGE_CHECKS = (
     "USB-C CC",
     "4G burst power",
     "Motor transient power",
+    "Low-power design",
+    "EMC/EMI",
+    "Safety (electrical)",
+    "Thermal management",
+    "DFM/DFT readiness",
+    "Firmware-HW co-verification",
     "CERE/project power baseline",
 )
 

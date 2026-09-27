@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Comprehensive Electronics Engineering design review skill. This skill should be used when reviewing hardware designs including schematics (PDF or netlist format), PCB layout files, and BOM documents. Performs deep, professional, multi-dimensional analysis covering power supply design, signal integrity, protection circuits, EMC/EMI, thermal management, DFM/DFT, component lifecycle, and supply chain risk. Generates a structured HTML report with S/A/B/C/D grading, risk-level marking (Critical/Warning/Info), and actionable recommendations. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
+description: "Comprehensive Electronics Engineering design review skill. This skill should be used when reviewing hardware designs including schematics (PDF or netlist format), PCB layout files, and BOM documents. Performs deep, professional, multi-dimensional analysis covering power supply design, signal integrity, protection circuits, electrical safety, EMC/EMI, thermal management, DFM/DFT, low-power design, firmware-hardware co-verification, component lifecycle, and supply chain risk. Generates a structured HTML report with S/A/B/C/D grading, risk-level marking (Critical/Warning/Info), and actionable recommendations. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
 agent_created: true
 ---
 
@@ -122,7 +122,14 @@ antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
 project-specific CERE requirement. Apply every matching conditional checklist.
 Regardless of detected features, confirm the generated system block diagram and
 power tree (the Graphviz DOT deliverables from Step 1.8), the ESD/external-boundary
-review, and the project power baseline. Record each item as `confirmed`,
+review, the low-power design review (sleep/standby current, leakage, power-gated
+domains, power budget), the EMC/EMI review (radiated/conducted emissions,
+immunity, filtering, grounding, clock/DC-DC noise), the electrical-safety review
+(creepage/clearance, isolation, battery safety), the thermal-management review
+(power-dense/enclosure heat), the DFM/DFT readiness review (test points,
+programming/debug access, ICT), the firmware-hardware co-verification review
+(HW gated by firmware must have the FW sequence specified), and the project power
+baseline. Record each item as `confirmed`,
 `finding`, `not applicable` with evidence (for the two diagrams, cite the
 `.dot`/`.png` file paths), or `not verifiable` due to missing evidence. The final
 report must include the coverage table defined in `references/conditional-review.md`.
@@ -175,7 +182,7 @@ For each applicable review dimension, systematically evaluate the design:
 #### Overall Grade Calculation
 
 Calculate overall grade as the weighted average across dimensions:
-- Critical dimensions (Power, Signal Integrity, Protection, Safety): weight 1.5x
+- Critical dimensions (Power, Signal Integrity, Protection, Safety, Low-Power for battery/portable/power-constrained designs): weight 1.5x
 - Standard dimensions: weight 1.0x
 - If ANY dimension is grade D, overall grade cannot exceed C.
 - If ANY dimension has 3+ critical findings, overall grade cannot exceed C.
@@ -198,7 +205,7 @@ Assemble review results into the following JSON structure (save as a temporary `
     "overall_summary": "<2-3 sentence overall assessment>",
     "coverage": [
         {
-            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|CERE>",
+            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|CERE>",
             "trigger": "<feature trigger or expected evidence>",
             "status": "<confirmed|finding|not applicable|not verifiable>",
             "evidence": "<file/page, finding location, or reason unavailable>"
@@ -311,12 +318,19 @@ When schematic files are detected, apply these review dimensions (see `reference
 3. **Protection Circuits** - ESD protection, over-voltage/over-current, isolation.
 4. **Circuit Logic & Correctness** - Functional verification, feedback loops, timing, component values.
 5. **Design Rule Checks** - Netlist consistency, connector pinout, documentation.
+6. **Low-Power Design** - Sleep/standby current budget, leakage (floating/unused pins, pull-resistor choice), power-gated domains and off-state isolation, regulator quiescent current / light-load efficiency, always-on domain minimization, RTC/backup domain, ship/storage mode. Mandatory for battery/portable/always-on designs and weighted 1.5x there. See `references/conditional-review.md` (Low-Power Design trigger) and `references/schematic-review.md` §6.
+7. **Safety (Electrical)** - Creepage/clearance, isolation barriers, over-voltage/current protection against the accessible-voltage class, and Li-Po battery safety (thermal runaway, over-charge/discharge, short, reverse, ship mode). See `references/schematic-review.md` §8 and `references/conditional-review.md` (Safety trigger).
+8. **DFM/DFT** - Test points, programming/debug headers, ICT access, panelization, process margins. See `references/schematic-review.md` §9 and `references/conditional-review.md` (DFM/DFT trigger).
+9. **Firmware-HW Co-Verification** - Hardware whose enable/configuration depends on firmware (chargers, load switches, boost, PMIC) must have the firmware sequence specified and cross-checked; "works only after FW runs" is a finding, not an assumption. See `references/schematic-review.md` §10.
 
 For battery designs, Power Supply Design must include temperature protection,
-charge/discharge limits, and usable-energy analysis. For 4G and motor designs,
-it must include peak/inrush transient stability. For projects naming CERE or
-another internal baseline, map the measured design against that controlled
-requirement and mark missing evidence explicitly.
+charge/discharge limits, and usable-energy analysis, Low-Power Design must
+quantify the sleep/standby budget against the cell capacity, and Electrical
+Safety must cover the Li-Po cell's thermal-runaway, over-charge/discharge, short,
+reverse-polarity, and ship-mode protection. For 4G and motor designs, Power
+Supply Design must include peak/inrush transient stability. For projects naming
+CERE or another internal baseline, map the measured design against that
+controlled requirement and mark missing evidence explicitly.
 
 ### PCB Design Review Dimensions
 
@@ -335,7 +349,16 @@ For antenna/RF designs, Signal Integrity and EMC/EMI must include the 50-ohm
 path, matching network, RF keepout, ground stitching, and tuning evidence. For
 USB-C designs, verify both CC pins and role resistors from the netlist and
 controller datasheet; do not accept a single generic "USB connector checked"
-statement.
+statement. For battery/portable/always-on designs, Power Integrity and EMC/EMI
+must also include low-power implementation: power-gated domain isolation in
+layout (no sneak return through a shared ground/pour), minimal always-on copper,
+and leakage/light-load behavior of the always-on rail. Cross-reference the
+schematic §6 Low-Power Design findings. EMC/EMI is a mandatory coverage check
+for every design (radiated/conducted emissions, immunity, filtering, grounding,
+clock/DC-DC noise); it must be confirmed even when no explicit EMC target is
+named, not treated as optional. Likewise, Thermal Management and DFM/DFT are
+mandatory coverage checks (power-dense/enclosure heat and production readiness,
+respectively) and must be confirmed for every design.
 
 ### BOM Review Dimensions
 
@@ -413,7 +436,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `pcb-review.md` - Detailed PCB design review checklist covering 8 dimensions including footprint/land pattern verification, with sub-items, current capacity tables, and routing rules.
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
-- `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, and CERE/project power baselines.
+- `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
 - `architecture-diagrams.md` - **MANDATORY format spec for the system block diagram and power tree** produced in Step 1.8. Defines the required Graphviz DOT style (layered functional blocks + net-label edges, no internal detail) and gives copy-paste DOT templates for both diagrams plus rendering commands.
 - `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures.
 

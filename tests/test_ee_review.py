@@ -312,8 +312,12 @@ class DeckCommandTests(unittest.TestCase):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
             cover = archive.read("ppt/slides/slide1.xml").decode("utf-8")
+            layout = archive.read("ppt/slideLayouts/slideLayout5.xml").decode("utf-8")
         self.assertIn("{{PROJECT_CODE}}", cover)
         self.assertIn("{{REVIEWER}}", cover)
+        self.assertNotIn("{{PROBLEM}}", cover)
+        self.assertIn('name="Problem Placeholder"', layout)
+        self.assertIn('wrap="none"', layout)
         self.assertIn("scripts/generate_pptx.py", skill)
         self.assertIn("scripts/crop_schematic.py", skill)
         self.assertIn("one-off script", skill)
@@ -346,6 +350,7 @@ class DeckCommandTests(unittest.TestCase):
                     {
                         "eyebrow": "Schematic · power",
                         "subtitle": "U6 — charge current",
+                        "problem": "The set current needs a cell-limit check.",
                         "body": "Rset is 3.4 kΩ. Therefore the fast-charge current is 39.7 mA. It is recommended to verify the cell's 1C rate.",
                     }
                 ],
@@ -359,6 +364,8 @@ class DeckCommandTests(unittest.TestCase):
             self.assertEqual(run_properties(slide, "Google Shape;93;p14"), before)
             self.assertIn("DEMO", slide.decode("utf-8"))
             self.assertIn("Schematic · power", finding)
+            self.assertIn("The set current needs a cell-limit check.", finding)
+            self.assertNotIn("{{PROBLEM}}", finding)
             self.assertNotIn("Evidence1", finding)
             self.assertNotIn("{{PROJECT_CODE}}", slide.decode("utf-8"))
 
@@ -398,6 +405,7 @@ class DeckCommandTests(unittest.TestCase):
                     {
                         "eyebrow": "Schematic · port",
                         "subtitle": "J1 — USB filter",
+                        "problem": "J1 leaves the pair without a choke.",
                         "body": "J1 has a TVS and no common-mode choke. We recommend a choke at the connector.",
                         "image": str(image),
                     }
@@ -452,6 +460,7 @@ class DeckCommandTests(unittest.TestCase):
                     {
                         "eyebrow": "Schematic · I2C",
                         "subtitle": "I2C — pull-up",
+                        "problem": "The pull-up for this bus sits on board B.",
                         "body": "SDA leaves board A. The pull-up is on board B. We recommend keeping that pull-up.",
                         "images": paths,
                     }
@@ -467,6 +476,30 @@ class DeckCommandTests(unittest.TestCase):
         self.assertIn("Evidence2", first)
         self.assertIn("Evidence1", second)
         self.assertNotIn("Evidence2", second)
+
+    def test_problem_sentence_must_fit_one_line(self):
+        import generate_pptx
+
+        deck = {
+            "project_code": "DEMO",
+            "designer": "A. Engineer",
+            "reviewer": "R. Name",
+            "review_date": "20260927",
+            "slides": [
+                {
+                    "eyebrow": "Schematic · power",
+                    "subtitle": "U6 — charge current",
+                    "problem": "x" * (generate_pptx.PROBLEM_CHAR_LIMIT + 1),
+                    "body": "The resistor sets the current. We recommend checking the cell limit.",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.pptx"
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                generate_pptx.main([str(json_path), "-o", str(output)])
 
     def test_long_body_continues_on_the_next_slide(self):
         import generate_pptx
@@ -484,6 +517,7 @@ class DeckCommandTests(unittest.TestCase):
                     {
                         "eyebrow": "Schematic · power",
                         "subtitle": "U6 — charge current",
+                        "problem": "The set current needs a cell-limit check.",
                         "body": body,
                     }
                 ],

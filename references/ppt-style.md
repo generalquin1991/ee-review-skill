@@ -38,7 +38,8 @@ One finding per slide, in English, three to five sentences.
 
 1. Eyebrow is the domain: `Schematic · <area>`, `BOM · <area>`, `PCB / layout`, or `DFM`.
 2. Subtitle is the part or net and the parameter being judged: `<ref> — <parameter>`.
-3. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
+3. `problem` is one sentence stating the issue, or the accept, on a single line. At most 60 characters. The finding layout's placeholder does not wrap; a longer sentence is rejected.
+4. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
 
 Use only these verdict forms:
 

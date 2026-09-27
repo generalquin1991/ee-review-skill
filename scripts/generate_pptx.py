@@ -19,6 +19,9 @@ FINDING_SLIDE = "ppt/slides/slide19.xml"
 FINDING_RELS = "ppt/slides/_rels/slide19.xml.rels"
 # Left body box is about 6.9 by 4.5 inches at the template's 14 pt body style.
 BODY_CHAR_BUDGET = 1000
+# One line in the finding layout's problem placeholder: 6.90 in wide, Arial 14 pt.
+# A wider character budget wraps. 60 keeps the sentence on that line.
+PROBLEM_CHAR_LIMIT = 60
 DEFAULT_TITLE = "Design review report"
 
 
@@ -143,6 +146,17 @@ def add_slide_relationship(files, slide_name):
         files["[Content_Types].xml"] = content_types.encode("utf-8")
 
 
+def require_problem_line(text):
+    line = " ".join(str(text).split())
+    if not line:
+        raise SystemExit("each slide needs a one-line problem sentence")
+    if len(line) > PROBLEM_CHAR_LIMIT:
+        raise SystemExit(
+            f"the problem sentence is {len(line)} characters; keep it to {PROBLEM_CHAR_LIMIT} so it stays on one line"
+        )
+    return line
+
+
 def image_pixel_size(blob):
     if blob.startswith(b"\x89PNG\r\n\x1a\n") and blob[12:16] == b"IHDR":
         width, height = struct.unpack(">II", blob[16:24])
@@ -212,6 +226,7 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
     xml = files[slide_xml_name].decode("utf-8")
     xml = set_shape_text(xml, "Eyebrow", finding["eyebrow"])
     xml = set_shape_text(xml, "Subtitle", finding["subtitle"])
+    xml = set_shape_text(xml, "Problem", finding["problem"])
     xml = set_shape_text(xml, "Body", finding["body"])
     images = list(finding.get("images") or [])
     if finding.get("image"):
@@ -249,9 +264,10 @@ def build_deck(data, output):
 
     expanded = []
     for slide in raw_slides:
-        for key in ("eyebrow", "subtitle", "body"):
+        for key in ("eyebrow", "subtitle", "body", "problem"):
             if not str(slide.get(key, "")).strip():
                 raise SystemExit(f"each slide needs {key}")
+        problem = require_problem_line(slide["problem"])
         chunks = split_body(slide["body"])
         images = list(slide.get("images") or [])
         if slide.get("image"):
@@ -262,6 +278,7 @@ def build_deck(data, output):
             expanded.append({
                 "eyebrow": slide["eyebrow"],
                 "subtitle": slide["subtitle"],
+                "problem": problem,
                 "body": chunks[page] if page < len(chunks) else chunks[-1],
                 "images": groups[page] if page < len(groups) else [],
             })

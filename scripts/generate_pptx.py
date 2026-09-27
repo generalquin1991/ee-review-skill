@@ -19,9 +19,8 @@ FINDING_SLIDE = "ppt/slides/slide19.xml"
 FINDING_RELS = "ppt/slides/_rels/slide19.xml.rels"
 # Left body box is about 6.9 by 4.5 inches at the template's 14 pt body style.
 BODY_CHAR_BUDGET = 1000
-# One line in the finding layout's problem placeholder: 6.90 in wide, Arial 14 pt.
-# A wider character budget wraps. 60 keeps the sentence on that line.
-PROBLEM_CHAR_LIMIT = 60
+# The existing subtitle line is 7.28 in wide at 18 pt. 60 characters stays on that one line.
+SUBTITLE_CHAR_LIMIT = 60
 DEFAULT_TITLE = "Design review report"
 
 
@@ -54,6 +53,32 @@ def set_shape_text(xml, name, text):
         cursor = match.end(2)
     pieces.append(block[cursor:])
     return xml[:start] + "".join(pieces) + xml[end:]
+
+
+SUBTITLE_COLORS = {
+    "critical": "C62828",
+    "warning": "E65100",
+    "info": "1565C0",
+    "accept": "2E7D32",
+}
+
+
+def set_subtitle_color(xml, severity):
+    color = SUBTITLE_COLORS.get(str(severity).strip().lower())
+    if color is None:
+        names = ", ".join(SUBTITLE_COLORS)
+        raise SystemExit(f"severity must be one of {names}")
+    marker = 'name="Subtitle"'
+    index = xml.find(marker)
+    if index < 0:
+        raise SystemExit("template shape Subtitle is missing")
+    start = xml.rfind("<p:sp", 0, index)
+    end = xml.find("</p:sp>", index) + len("</p:sp>")
+    block = xml[start:end]
+    updated, count = re.subn(r'(<a:srgbClr val=")[0-9A-Fa-f]{6}(")', rf"\g<1>{color}\2", block, count=1)
+    if count != 1:
+        raise SystemExit("subtitle has no font color to replace")
+    return xml[:start] + updated + xml[end:]
 
 
 def remove_pic(xml, name):
@@ -146,13 +171,13 @@ def add_slide_relationship(files, slide_name):
         files["[Content_Types].xml"] = content_types.encode("utf-8")
 
 
-def require_problem_line(text):
+def require_subtitle_line(text):
     line = " ".join(str(text).split())
     if not line:
-        raise SystemExit("each slide needs a one-line problem sentence")
-    if len(line) > PROBLEM_CHAR_LIMIT:
+        raise SystemExit("each slide needs a one-line subtitle")
+    if len(line) > SUBTITLE_CHAR_LIMIT:
         raise SystemExit(
-            f"the problem sentence is {len(line)} characters; keep it to {PROBLEM_CHAR_LIMIT} so it stays on one line"
+            f"the subtitle is {len(line)} characters; keep it to {SUBTITLE_CHAR_LIMIT} so it stays on one line"
         )
     return line
 
@@ -226,7 +251,7 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
     xml = files[slide_xml_name].decode("utf-8")
     xml = set_shape_text(xml, "Eyebrow", finding["eyebrow"])
     xml = set_shape_text(xml, "Subtitle", finding["subtitle"])
-    xml = set_shape_text(xml, "Problem", finding["problem"])
+    xml = set_subtitle_color(xml, finding["severity"])
     xml = set_shape_text(xml, "Body", finding["body"])
     images = list(finding.get("images") or [])
     if finding.get("image"):
@@ -264,10 +289,10 @@ def build_deck(data, output):
 
     expanded = []
     for slide in raw_slides:
-        for key in ("eyebrow", "subtitle", "body", "problem"):
+        for key in ("eyebrow", "subtitle", "body", "severity"):
             if not str(slide.get(key, "")).strip():
                 raise SystemExit(f"each slide needs {key}")
-        problem = require_problem_line(slide["problem"])
+        subtitle = require_subtitle_line(slide["subtitle"])
         images = list(slide.get("images") or [])
         if slide.get("image"):
             images.append(slide["image"])
@@ -281,8 +306,8 @@ def build_deck(data, output):
         for page in range(pages):
             expanded.append({
                 "eyebrow": slide["eyebrow"],
-                "subtitle": slide["subtitle"],
-                "problem": problem,
+                "subtitle": subtitle,
+                "severity": slide["severity"],
                 "body": chunks[page] if page < len(chunks) else chunks[-1],
                 "images": groups[page] if page < len(groups) else [],
             })

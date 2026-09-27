@@ -37,9 +37,8 @@ Show the proposed cover values before writing `deck.json`. If the user changes o
 One finding per slide, in English, three to five sentences.
 
 1. Eyebrow is the domain: `Schematic · <area>`, `BOM · <area>`, `PCB / layout`, or `DFM`.
-2. Subtitle is the part or net and the parameter being judged: `<ref> — <parameter>`.
-3. `problem` is one sentence stating the issue, or the accept, on a single line. At most 60 characters. The finding layout's placeholder does not wrap; a longer sentence is rejected.
-4. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
+2. Subtitle is the one existing line under the eyebrow. It is the one-sentence summary of the issue, or of the accept. At most 60 characters. That placeholder does not wrap, and there is no second line for the same sentence. A longer subtitle is rejected. Set `severity` to `critical`, `warning`, `info`, or `accept`. The command colors that line only: dark red, dark orange, blue, or green. Do not write the severity word in the sentence.
+3. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
 
 The E96 resistor finding is one slide. Group each off-grid value once with the references that use it, then one verdict. Set `"single_page": true` on that slide so a long list does not continue onto another page.
 

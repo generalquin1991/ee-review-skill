@@ -314,11 +314,14 @@ class DeckCommandTests(unittest.TestCase):
         with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
             cover = archive.read("ppt/slides/slide1.xml").decode("utf-8")
             layout = archive.read("ppt/slideLayouts/slideLayout5.xml").decode("utf-8")
+            slide = archive.read("ppt/slides/slide19.xml").decode("utf-8")
         self.assertIn("{{PROJECT_CODE}}", cover)
         self.assertIn("{{REVIEWER}}", cover)
         self.assertNotIn("{{PROBLEM}}", cover)
-        self.assertIn('name="Problem Placeholder"', layout)
-        self.assertIn('wrap="none"', layout)
+        self.assertNotIn("Problem Placeholder", layout)
+        self.assertIn('name="Subtitle"', slide)
+        self.assertIn('wrap="none"', slide)
+        self.assertIn('sz="1800"', slide)
         self.assertIn("scripts/generate_pptx.py", skill)
         self.assertIn("scripts/crop_schematic.py", skill)
         self.assertIn("one-off script", skill)
@@ -350,8 +353,8 @@ class DeckCommandTests(unittest.TestCase):
                 "slides": [
                     {
                         "eyebrow": "Schematic · power",
-                        "subtitle": "U6 — charge current",
-                        "problem": "The set current needs a cell-limit check.",
+                        "subtitle": "The set current needs a cell-limit check.",
+                        "severity": "critical",
                         "body": "Rset is 3.4 kΩ. Therefore the fast-charge current is 39.7 mA. It is recommended to verify the cell's 1C rate.",
                     }
                 ],
@@ -369,6 +372,10 @@ class DeckCommandTests(unittest.TestCase):
             self.assertNotIn("{{PROBLEM}}", finding)
             self.assertNotIn("Evidence1", finding)
             self.assertNotIn("{{PROJECT_CODE}}", slide.decode("utf-8"))
+            start = finding.find('name="Subtitle"')
+            subtitle = finding[finding.rfind("<p:sp", 0, start):finding.find("</p:sp>", start)]
+            self.assertIn("C62828", subtitle)
+            self.assertNotIn("Critical", subtitle)
 
     def test_evidence_picture_keeps_aspect_inside_the_frame(self):
         import struct
@@ -405,8 +412,8 @@ class DeckCommandTests(unittest.TestCase):
                 "slides": [
                     {
                         "eyebrow": "Schematic · port",
-                        "subtitle": "J1 — USB filter",
-                        "problem": "J1 leaves the pair without a choke.",
+                        "subtitle": "J1 leaves the pair without a choke.",
+                        "severity": "warning",
                         "body": "J1 has a TVS and no common-mode choke. We recommend a choke at the connector.",
                         "image": str(image),
                     }
@@ -460,8 +467,8 @@ class DeckCommandTests(unittest.TestCase):
                 "slides": [
                     {
                         "eyebrow": "Schematic · I2C",
-                        "subtitle": "I2C — pull-up",
-                        "problem": "The pull-up for this bus sits on board B.",
+                        "subtitle": "The pull-up for this bus sits on board B.",
+                        "severity": "warning",
                         "body": "SDA leaves board A. The pull-up is on board B. We recommend keeping that pull-up.",
                         "images": paths,
                     }
@@ -478,7 +485,7 @@ class DeckCommandTests(unittest.TestCase):
         self.assertIn("Evidence1", second)
         self.assertNotIn("Evidence2", second)
 
-    def test_problem_sentence_must_fit_one_line(self):
+    def test_subtitle_must_fit_one_line(self):
         import generate_pptx
 
         deck = {
@@ -489,8 +496,8 @@ class DeckCommandTests(unittest.TestCase):
             "slides": [
                 {
                     "eyebrow": "Schematic · power",
-                    "subtitle": "U6 — charge current",
-                    "problem": "x" * (generate_pptx.PROBLEM_CHAR_LIMIT + 1),
+                    "subtitle": "x" * (generate_pptx.SUBTITLE_CHAR_LIMIT + 1),
+                    "severity": "info",
                     "body": "The resistor sets the current. We recommend checking the cell limit.",
                 }
             ],
@@ -517,8 +524,8 @@ class DeckCommandTests(unittest.TestCase):
                 "slides": [
                     {
                         "eyebrow": "Schematic · power",
-                        "subtitle": "U6 — charge current",
-                        "problem": "The set current needs a cell-limit check.",
+                        "subtitle": "The set current needs a cell-limit check.",
+                        "severity": "warning",
                         "body": body,
                     }
                 ],
@@ -545,8 +552,8 @@ class DeckCommandTests(unittest.TestCase):
                 "slides": [
                     {
                         "eyebrow": "BOM · resistors",
-                        "subtitle": "Resistors — E96",
-                        "problem": "Several resistors are outside the E96 series.",
+                        "subtitle": "Several resistors are outside the E96 series.",
+                        "severity": "warning",
                         "body": "2.2 k\u03a9 is used by R1 and R2. " * 40,
                         "single_page": True,
                     }

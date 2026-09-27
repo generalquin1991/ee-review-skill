@@ -9,11 +9,24 @@
 - Verify recommended replacement parts are documented for NRND items.
 - Check manufacturer health / supply chain risk for sole-source components.
 
-### 1.2 Lead Time & Stock
+### 1.2 Lead Time & Stock — Sourcing Priority (固定优先级)
+
+**Fixed distributor check order — LCSC (szlcsc) first, then others:**
+1. **LCSC / szlcsc.com** — primary low-cost source; check stock + lifecycle here FIRST.
+2. **Digi-Key** — first fallback for parts out-of-stock-at-LCSC or missing at LCSC.
+3. **Mouser** — second fallback.
+4. **Arrow / Avnet** — franchise distributors for ICs needing authorized supply.
+5. Other authorized distributors as needed.
+
+For every major component: verify it is **in-stock at LCSC**, or, if not,
+identify the next source in the priority list that can fulfill it and note the
+price delta. A part unavailable at LCSC is not automatically a blocker, but the
+fallback must be named and priced.
+
 - Verify lead time is acceptable for production schedule (target: < 16 weeks).
-- Check distributor stock levels (DigiKey, Mouser, Arrow, Avnet, LCSC, etc.).
 - Confirm minimum order quantity (MOQ) is reasonable for production volume.
-- Verify multi-distributor availability (at least 2 authorized distributors).
+- Verify multi-distributor availability (at least 2 authorized distributors,
+  with LCSC as the preferred primary).
 
 ### 1.3 Lifecycle Status Quick Reference
 | Status | Action | Risk Level |

@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Comprehensive Electronics Engineering design review skill. This skill should be used when reviewing hardware designs including schematics (PDF or netlist format), PCB layout files, and BOM documents. Performs deep, professional, multi-dimensional analysis covering power supply design, signal integrity, protection circuits, electrical safety, EMC/EMI, thermal management, DFM/DFT, low-power design, firmware-hardware co-verification, component lifecycle, and supply chain risk. Generates a structured HTML report with S/A/B/C/D grading, risk-level marking (Critical/Warning/Info), and actionable recommendations. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
+description: "Comprehensive Electronics Engineering design review skill. This skill should be used when reviewing hardware designs including schematics (PDF or netlist format), PCB layout files, and BOM documents. Performs deep, professional, multi-dimensional analysis covering power supply design, signal integrity, protection circuits, electrical safety, EMC/EMI, thermal management, DFM/DFT, low-power design, firmware-hardware co-verification, component lifecycle, component availability (sourcing priority: LCSC/szlcsc first, then Digi-Key/Mouser/Arrow/Avnet), and supply chain risk. Generates a structured HTML report with S/A/B/C/D grading, risk-level marking (Critical/Warning/Info), and actionable recommendations. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审."
 agent_created: true
 ---
 
@@ -128,7 +128,10 @@ immunity, filtering, grounding, clock/DC-DC noise), the electrical-safety review
 (creepage/clearance, isolation, battery safety), the thermal-management review
 (power-dense/enclosure heat), the DFM/DFT readiness review (test points,
 programming/debug access, ICT), the firmware-hardware co-verification review
-(HW gated by firmware must have the FW sequence specified), and the project power
+(HW gated by firmware must have the FW sequence specified), the component-
+availability / sourcing review (for each major component verify stock, lifecycle
+status, and lead time, checking LCSC/szlcsc FIRST then Digi-Key/Mouser/Arrow/
+Avnet; flag unavailable/EOL/long-lead or sole-source parts), and the project power
 baseline. Record each item as `confirmed`,
 `finding`, `not applicable` with evidence (for the two diagrams, cite the
 `.dot`/`.png` file paths), or `not verifiable` due to missing evidence. The final
@@ -205,7 +208,7 @@ Assemble review results into the following JSON structure (save as a temporary `
     "overall_summary": "<2-3 sentence overall assessment>",
     "coverage": [
         {
-            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|CERE>",
+            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|CERE>",
             "trigger": "<feature trigger or expected evidence>",
             "status": "<confirmed|finding|not applicable|not verifiable>",
             "evidence": "<file/page, finding location, or reason unavailable>"
@@ -364,7 +367,7 @@ respectively) and must be confirmed for every design.
 
 When BOM files are detected, apply these review dimensions (see `references/bom-review.md` for detailed checklists):
 
-1. **Component Availability & Lifecycle** - Lifecycle status, lead time, stock, distributor availability.
+1. **Component Availability & Lifecycle** - Lifecycle status, lead time, stock, distributor availability. **Sourcing priority: check LCSC (szlcsc) FIRST, then Digi-Key, Mouser, Arrow, Avnet.** Flag any part that is EOL/NRND, long-lead (>16 wks), out-of-stock at the primary source, or sole-sourced without a documented second source. See `references/bom-review.md` §1 and `references/conditional-review.md` (Component Availability trigger).
 2. **Second Source & Alternatives** - Pin-compatible alternatives, parameter-based substitution, standardization.
 3. **Part Number Accuracy** - MPN completeness, description quality, reference designator consistency.
 4. **Parameter Verification** - Electrical parameters, environmental ratings, compliance.

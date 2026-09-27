@@ -125,6 +125,7 @@ MANDATORY_COVERAGE_CHECKS = (
     "Thermal management",
     "DFM/DFT readiness",
     "Firmware-HW co-verification",
+    "Component availability (sourcing)",
     "CERE/project power baseline",
 )
 

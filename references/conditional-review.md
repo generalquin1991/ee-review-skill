@@ -287,6 +287,32 @@ config, security/lock bits). Review:
 If the firmware sequence is not provided, report Firmware-HW co-verification as
 `not verifiable`.
 
+### Component Availability (Sourcing)
+
+Trigger on any BOM, component list, or design that names purchasable parts
+(always for production designs). Review the procureability of every major
+component (ICs, key passives, connectors, mechanicals):
+
+- **Source priority (fixed order):** check stock and lifecycle at **LCSC
+  (szlcsc.com) FIRST** — it is the user's primary low-cost source — then fall
+  back to **Digi-Key**, **Mouser**, **Arrow**, **Avnet**, and other authorized
+  distributors. A part that is unavailable at LCSC is not automatically a
+  blocker, but the reviewer must name the next source in the priority list that
+  can fulfill it and note the price delta.
+- **Lifecycle status:** Active vs NRND / EOL / Obsolete; flag last-time-buy
+  dates and mandatory redesign for obsolete parts.
+- **Stock & lead time:** in-stock at the primary source, or lead time
+  acceptable (< 16 weeks); flag long-lead or out-of-stock-at-primary parts.
+- **Second source:** at least one pin-compatible or functionally equivalent
+  alternative documented for every critical IC; sole-source parts are a
+  supply-chain single-point-of-failure and must be called out.
+- **MOQ / packaging:** MOQ reasonable for production volume; tape-and-reel /
+  MSL documented for SMT.
+
+Record the primary source checked and the resulting status for each flagged
+part. If no BOM or component list is provided, report Component Availability as
+`not applicable`.
+
 ## CERE and Project-Specific Power Baseline
 
 If the project references **CERE** or another internal power/reliability
@@ -325,6 +351,7 @@ absent:
 | Thermal management | high-power/power-dense/enclosure or temp target | confirmed/finding/not applicable/not verifiable | location |
 | DFM/DFT readiness | production design | confirmed/finding/not applicable/not verifiable | location |
 | Firmware-HW co-verification | any HW gated by firmware | confirmed/finding/not applicable/not verifiable | location |
+| Component availability (sourcing) | BOM/component list or N/A evidence | confirmed/finding/not applicable/not verifiable | location / primary source |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
 
 The coverage table is not a substitute for dimension findings. It is the audit

@@ -9,7 +9,7 @@ Every checklist row is a decision, not a reminder to look. Record it with all si
 | Pass | The observable condition that closes the check. |
 | Fail | The observable condition that opens a finding. |
 | Severity | `critical`, `warning`, or `info`, already capped by the rules below. |
-| Citation | Datasheet, standard, or app note you opened: document title, revision if known, and the table or section. "Per datasheet" with no locator is not a citation. |
+| Citation | Local datasheet PDF in `ee-review/datasheets/`, plus the document title, revision if the file shows one, and the table or section. "Per datasheet" with no file is not a citation. |
 
 ## Status vocabulary
 
@@ -21,6 +21,14 @@ Use only `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 - `not verifiable` names the missing file. Do not emit a finding, and do not write `confirmed`.
 
 Forbidden as a status, a finding title, or the whole evidence cell: "checked", "reviewed", "verified", "looks fine", "已检查", "已确认". A dimension with no proven fail and no proven pass is `not verifiable`, not a passing grade filler.
+
+## Datasheets on disk
+
+Before a row that depends on a datasheet, save that PDF under `<project>/ee-review/datasheets/`. Name the file from the manufacturer part number. If the user already supplied the PDF, copy it there and cite that copy. A browser page that was not saved is not the citation. If the PDF cannot be saved, the row is `not verifiable` and names the missing path. Stock and lifecycle stay on the distributor rule below; a datasheet PDF is not a stock quote.
+
+## Review output folder
+
+Every file this review writes goes in `<project>/ee-review/`, next to the schematic or netlist. That includes the `.dot` sources, the rendered `.svg` and `.png`, schematic and datasheet crops, `deck.json`, the HTML report, and the PPT. Datasheet PDFs go in `ee-review/datasheets/`. Leave the design sources where the user put them.
 
 ## PDF and connectivity
 

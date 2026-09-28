@@ -2,7 +2,7 @@
 
 Apply `references/review-contract.md` to every row. The Pass and Fail columns are the verdict. If the Evidence file is not in the review, record `not verifiable` and do not open a finding. Severity in the table is the ceiling after the PDF connectivity rule: a connectivity fail on a PDF with no parser lookup is at most `warning`.
 
-Citation means a document you opened. Copy the table or section id into the finding. A blank citation on a pass that depends on a datasheet makes the row `not verifiable`.
+Citation means the local PDF in `ee-review/datasheets/`. Copy the table or section id into the finding. A blank citation, or a datasheet that was only viewed and not saved, makes the row `not verifiable`.
 
 ## 1. Power
 

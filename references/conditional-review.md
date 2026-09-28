@@ -369,6 +369,7 @@ absent:
 | I2C addresses | an I2C bus, else not applicable | confirmed/finding/not applicable/not verifiable | bus, device, 7-bit address |
 | Clock rework footprint | a clock toward memory, a display, a camera, or another hard-to-rework interface | confirmed/finding/not applicable/not verifiable | clock net |
 | High-speed termination | a net whose datasheet shows source or end termination | confirmed/finding/not applicable/not verifiable | net and the cited network |
+| Footprint pin name and number | an IC, connector, transistor, or other part with a pin table and an assigned footprint | confirmed/finding/not applicable/not verifiable | pad number, pad name, symbol pin, datasheet pin |
 
 The coverage table is not a substitute for dimension findings. It is the audit
 trail proving that conditional checks were considered.

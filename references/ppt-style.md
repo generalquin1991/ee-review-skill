@@ -3,9 +3,9 @@
 Produce the deck only by calling the bundled commands. Do not assemble slides with a one-off script, edit slide XML by hand, or copy the template and patch it during a review. If a layout is missing, change the script in this skill, then re-run the command.
 
 ```bash
-python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o crop.png
-python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o crop.png --mark box
-python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYYMMDD>.pptx
+python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png
+python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o ee-review/<crop>.png --mark box
+python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx
 ```
 
 `kicad-cli` is not always on `PATH`. The crop command also tries `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli`. Netlists still go through `scripts/parse_kicad_netlist.py` or `scripts/parse_netlist.py`. Do not write a parser for this deck.
@@ -61,7 +61,7 @@ The text command keeps the template typeface and size. If the body does not fit,
 
 KiCad schematic (`.kicad_sch`): export and crop with `scripts/crop_schematic.py`. Do not ask for a screenshot.
 
-Already-supplied schematic PDF, datasheet PDF, or a saved web table: crop that file, then pass the PNG to `scripts/crop_schematic.py --image` when it needs a red box or arrow.
+Already-supplied schematic PDF, datasheet PDF, or a saved web table: copy the datasheet into `ee-review/datasheets/` first, crop that file, then pass the PNG to `scripts/crop_schematic.py --image` when it needs a red box or arrow. Write the crop into `ee-review/`.
 
 PADS or Altium schematic: if the existing importer and parsers do not yield a netlist, stop and ask for a netlist or a BOM, using `references/file-preparation-guide.md`. Do not write a parser in the review. If there is nothing to plot, ask for a schematic PDF and then crop that PDF. PCB files that `scripts/convert_layout.py` already accepts stay on that command.
 

@@ -116,6 +116,7 @@ Section 1 is the verdict for second source, lifecycle, and MPN suffix. Do not ra
 - Confirm thermal pad footprint matches QFN/DFN exposed pad dimensions.
 - Verify BGA pad pattern (NSMD vs SMD) matches BGA ball type recommendation.
 - Check for incorrect footprint assignment (e.g., 0805 resistor assigned 0603 footprint).
+- For an IC, connector, or transistor, pad numbers and pad names follow the Footprint pin name and number row in `references/pcb-review.md`. Open the pin table for that comparison. The package-code check is separate.
 
 ### 5.3 Package Thermal & Mechanical
 - Verify package thermal resistance (theta-JA / theta-JC) is adequate for power dissipation.

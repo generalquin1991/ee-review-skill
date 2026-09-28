@@ -100,17 +100,17 @@ BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not inven
 
 When a diagram is needed and its `.dot` file is missing, that coverage row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
 
-1. **System block diagram** — `<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
-2. **Power tree** — `<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
+1. **System block diagram** — `ee-review/<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
+2. **Power tree** — `ee-review/<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
 
 Render both to PNG and SVG with Graphviz `dot`:
 ```bash
-dot -Tpng -o <project>_system_block_diagram.png <project>_system_block_diagram.dot
-dot -Tsvg -o <project>_system_block_diagram.svg <project>_system_block_diagram.dot
-# (repeat for <project>_power_tree)
+dot -Tpng -o ee-review/<project>_system_block_diagram.png ee-review/<project>_system_block_diagram.dot
+dot -Tsvg -o ee-review/<project>_system_block_diagram.svg ee-review/<project>_system_block_diagram.dot
+# (repeat for ee-review/<project>_power_tree)
 ```
 
-**Placement:** put the `.dot`/`.png`/`.svg` files in the project directory, next to the schematic or netlist. When a diagram is drawn, the coverage table cites that path. When the user confirmed a skip, the row is `not applicable`.
+**Placement:** every file this review writes goes in `<project>/ee-review/`, next to the schematic or netlist. That covers the diagrams, crops, `deck.json`, the HTML report, and the PPT. Datasheets cited by a finding are PDFs in `ee-review/datasheets/`, saved before the finding is written. A page left only in the browser is not a citation. When a diagram is drawn, the coverage table cites that path. When the user confirmed a skip, the row is `not applicable`.
 
 ### Step 2: Load Reference Checklists
 
@@ -145,7 +145,7 @@ this board, ask whether the pack has a protection board and a PTC before
 treating the cell as protected. Each I2C
 bus gets an address list. Clocks toward memory, a display, a camera, or another
 hard-to-rework interface get the rework-footprint check, and a net whose
-datasheet shows source or end termination gets that check. A substitute for a
+datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. A substitute for a
 key part stays out of the report until the user confirms that exact part.
 
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
@@ -311,7 +311,7 @@ Assemble review results into the following JSON structure (save as a temporary `
 Execute the report generation script:
 
 ```bash
-python3 scripts/generate_report.py <input.json> <output_report.html>
+python3 scripts/generate_report.py <input.json> ee-review/<output_report.html>
 ```
 
 The script generates a styled HTML report with:
@@ -331,9 +331,9 @@ Return the generated HTML path to the user so it can be opened or previewed by t
 When the user asks for the review PPT, DFM deck, or the same slide style, read `references/ppt-style.md` and produce the deck only with these commands:
 
 ```bash
-python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o crop.png
-python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o crop.png --mark box
-python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYYMMDD>.pptx
+python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png
+python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o ee-review/<crop>.png --mark box
+python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx
 ```
 
 Do not assemble the PPT with python-pptx, hand-edited slide XML, a copied template, or a one-off script written during the review. If the command cannot express the layout, change the script in this skill and run it again.
@@ -443,8 +443,8 @@ Always reference `references/standards-reference.md` during review to:
 - `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
 - `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
-- `generate_pptx.py` - **The only command that writes a review PPT.** Reads `deck.json` and fills `assets/review-slide-template.pptx` by replacing existing text runs. Usage: `python3 scripts/generate_pptx.py deck.json -o <project code>_design_review_<YYYYMMDD>.pptx`. See `references/ppt-style.md`.
-- `crop_schematic.py` - **The only command that crops a KiCad symbol or draws a red box/arrow on a review figure.** Usage: `python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o crop.png`. An existing PNG uses `--image` and optional `--box` / `--mark`.
+- `generate_pptx.py` - **The only command that writes a review PPT.** Reads `ee-review/deck.json` and fills `assets/review-slide-template.pptx` by replacing existing text runs. Usage: `python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx`. See `references/ppt-style.md`.
+- `crop_schematic.py` - **The only command that crops a KiCad symbol or draws a red box/arrow on a review figure.** Usage: `python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png`. An existing PNG uses `--image` and optional `--box` / `--mark`.
 - `convert_layout.py` - Auto-detects PCB layout file format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb, KiCad .kicad_pcb) and converts to KiCad format using kicad-cli. Optionally exports Gerber, drill, pick-place, and netlist files. Includes post-conversion audit that checks for routing trace loss, solder mask/paste settings, via tenting, silk screen completeness, board outline, and copper zones. Requires KiCad 8+ installed.
 - `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.
 - `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions, then enforces the fit-error threshold. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`

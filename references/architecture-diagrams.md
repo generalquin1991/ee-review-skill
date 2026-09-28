@@ -12,7 +12,7 @@ A battery product requires the power tree. Do not ask to skip it. After any powe
 
 BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a drawing from the parts list. Ask the user. If they want the diagram, ask for a schematic or a netlist first. Evidence when there is still nothing to draw from: `no schematic or netlist in this review`.
 
-When you do draw one, put the `.dot`, `.png`, and `.svg` files in the project directory next to the schematic or netlist, before checklist findings. If you decided the diagram is needed and the file is missing, that row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
+When you do draw one, put the `.dot`, `.png`, and `.svg` files in `<project>/ee-review/`, before checklist findings. If you decided the diagram is needed and the file is missing, that row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
 
 **Format: Graphviz DOT (`.dot`), rendered with `dot`.** Do not substitute drawio, a hand-drawn SVG, or a PNG with no `.dot` source. Always ship the `.dot` plus rendered `.png` and `.svg`.
 
@@ -33,7 +33,7 @@ The diagrams fix the topology so later findings can be checked against it. They 
   layer label (e.g. "Compute", "Power", "Sensors").
 
 ## 1. System block diagram
-File: `<project>_system_block_diagram.dot`
+File: `ee-review/<project>_system_block_diagram.dot`
 
 Shows the top-level functional modules of the whole design and how they talk.
 One block per functional module (MCU, PMIC, radio, sensor, connector, …); the
@@ -74,7 +74,7 @@ digraph SystemBlock {
 ```
 
 ## 2. Power tree
-File: `<project>_power_tree.dot`
+File: `ee-review/<project>_power_tree.dot`
 
 Shows the power architecture as a tree: source → regulator/PMIC → output rails
 → major loads. Annotate each rail block with its voltage and typical current;
@@ -116,14 +116,11 @@ digraph PowerTree {
 
 ## Render
 ```bash
-dot -Tpng -o <project>_system_block_diagram.png <project>_system_block_diagram.dot
-dot -Tsvg -o <project>_system_block_diagram.svg <project>_system_block_diagram.dot
-dot -Tpng -o <project>_power_tree.png <project>_power_tree.dot
-dot -Tsvg -o <project>_power_tree.svg <project>_power_tree.dot
+dot -Tpng -o ee-review/<project>_system_block_diagram.png ee-review/<project>_system_block_diagram.dot
+dot -Tsvg -o ee-review/<project>_system_block_diagram.svg ee-review/<project>_system_block_diagram.dot
+dot -Tpng -o ee-review/<project>_power_tree.png ee-review/<project>_power_tree.dot
+dot -Tsvg -o ee-review/<project>_power_tree.svg ee-review/<project>_power_tree.dot
 ```
 
 ## Placement
-Put all generated deliverables (report HTML + the four diagram files) in the
-PROJECT directory — the same folder that holds the source schematic/board files.
-Do not place them in the WorkBuddy workspace or a separate deep subfolder. The
-coverage table must cite the diagram file paths as evidence.
+Put every file this review writes in `<project>/ee-review/`: the HTML report, the `.dot` sources, and the rendered `.svg` and `.png`. Datasheet PDFs go in `ee-review/datasheets/`. The coverage table cites those paths.

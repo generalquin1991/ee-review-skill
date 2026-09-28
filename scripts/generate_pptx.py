@@ -397,7 +397,6 @@ def build_deck(data, output):
             images.append(slide["image"])
         if slide.get("single_page"):
             chunks = [slide["body"]]
-            images = images[:2]
         else:
             chunks = split_body(slide["body"])
         groups = [images[start:start + 2] for start in range(0, len(images), 2)] or [[]]

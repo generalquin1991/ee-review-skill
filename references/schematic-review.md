@@ -90,7 +90,7 @@ Compare the resistance to IEC 60063 E96. Divide by decades until the mantissa is
 
 Name only the cause the files show. Schematic value differs from the MPN while the footprint package matches the MPN package: the symbol or the BOM line has the wrong value. Footprint package differs from the package code in the MPN: a footprint-library assignment error. Two value fields on the same symbol disagree: a symbol property mismatch. Name both strings. Do not call a value mismatch a footprint-library error when the packages match. Several mismatches are one table, columns Reference, Schematic value, Ordered value, Footprint, Cause, and one verdict sentence.
 
-A value that a cited IC equation requires exactly, and that is not on the list, is an explicit accept for that reference. Name the equation in the same slide. Do not silently treat it as E96. Do not open a second slide that repeats the E96 recommendation.
+A value that a cited IC equation requires exactly, and that is not on the list, is an explicit accept for that reference. Name the equation in the same slide and include a crop of that equation from the PDF in `ee-review/datasheets/`, with the formula boxed. A page number in the sentence does not replace that crop. Do not silently treat it as E96. Do not open a second slide that repeats the E96 recommendation. Extra crops continue; the resistor table stays on the first slide.
 
 ### Capacitor DC bias
 

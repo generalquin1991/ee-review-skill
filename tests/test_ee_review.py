@@ -234,6 +234,7 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("Footprint pin name and number", matrix)
         self.assertIn("not a finding until the user confirms", (ROOT / "references" / "bom-review.md").read_text(encoding="utf-8"))
         self.assertIn("one crop per board", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
+        self.assertIn("crop of that region", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
         self.assertIn("Power tree", matrix)
         self.assertIn("references/review-contract.md", skill)
         self.assertIn("PDF-only", skill)
@@ -580,6 +581,63 @@ class DeckCommandTests(unittest.TestCase):
             self.assertIn("<a:tbl>", finding)
             self.assertIn("Recommended", finding)
             self.assertIn("2.21 kΩ", finding)
+
+    def test_single_page_keeps_extra_datasheet_crops(self):
+        import struct
+        import zipfile
+        import zlib
+
+        import generate_pptx
+
+        def png(width, height):
+            row = b"\x00" + (b"\xff\x00\x00" * width)
+            raw = row * height
+
+            def chunk(tag, data):
+                return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+            ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+            return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for name in ("schematic.png", "equation.png", "table.png"):
+                path = Path(tmp) / name
+                path.write_bytes(png(40, 20))
+                paths.append(str(path))
+            output = Path(tmp) / "out.pptx"
+            deck = {
+                "project_code": "DEMO",
+                "designer": "A. Engineer",
+                "reviewer": "R. Name",
+                "review_date": "20260927",
+                "slides": [
+                    {
+                        "eyebrow": "BOM · resistors",
+                        "subtitle": "Several resistors are outside the E96 series.",
+                        "severity": "warning",
+                        "body": "Replace each off-grid value, except the divider set by the cited equation.",
+                        "table": {
+                            "columns": ["Value", "References", "Recommended"],
+                            "rows": [["2.2 kΩ", "R41", "2.21 kΩ"]],
+                        },
+                        "images": paths,
+                        "single_page": True,
+                    }
+                ],
+            }
+            json_path = Path(tmp) / "deck.json"
+            json_path.write_text(json.dumps(deck), encoding="utf-8")
+            generate_pptx.main([str(json_path), "-o", str(output)])
+            with zipfile.ZipFile(output) as archive:
+                names = archive.namelist()
+                slides = [name for name in names if name.startswith("ppt/slides/slide") and name.endswith(".xml")]
+                first = archive.read("ppt/slides/slide19.xml").decode("utf-8")
+                second = archive.read("ppt/slides/slide31.xml").decode("utf-8")
+            self.assertEqual(len(slides), 3)
+            self.assertIn("<a:tbl>", first)
+            self.assertNotIn("<a:tbl>", second)
+            self.assertIn("ppt/media/finding-2-1.png", names)
 
     def test_symbol_crop_box_uses_sheet_coordinates(self):
         import crop_schematic

@@ -78,6 +78,23 @@ def set_subtitle_color(xml, severity):
     updated, count = re.subn(r'(<a:srgbClr val=")[0-9A-Fa-f]{6}(")', rf"\g<1>{color}\2", block, count=1)
     if count != 1:
         raise SystemExit("subtitle has no font color to replace")
+    # The layout's paragraph mark is gray and italic. PowerPoint uses that mark
+    # for the visible subtitle unless this slide carries the same color on the
+    # paragraph style and on the paragraph end mark.
+    style = (
+        '<a:lstStyle><a:lvl1pPr algn="l"><a:buNone/>'
+        f'<a:defRPr sz="1800" b="1" i="0"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+        '<a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/>'
+        '</a:defRPr></a:lvl1pPr></a:lstStyle>'
+    )
+    updated = updated.replace("<a:lstStyle/>", style, 1)
+    end_mark = (
+        f'<a:endParaRPr lang="en-US" sz="1800" b="1" i="0" dirty="0">'
+        f'<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+        '<a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/>'
+        '</a:endParaRPr>'
+    )
+    updated = updated.replace("</a:r></a:p>", f"</a:r>{end_mark}</a:p>", 1)
     return xml[:start] + updated + xml[end:]
 
 

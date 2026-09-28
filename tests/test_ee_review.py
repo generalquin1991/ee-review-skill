@@ -231,6 +231,7 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("Clock rework footprint", schematic)
         self.assertIn("High-speed termination", schematic)
         self.assertIn("Footprint pin name and number", (ROOT / "references" / "pcb-review.md").read_text(encoding="utf-8"))
+        self.assertIn("One slide lists every part whose pin table was opened", (ROOT / "references" / "pcb-review.md").read_text(encoding="utf-8"))
         self.assertIn("Footprint pin name and number", matrix)
         self.assertIn("not a finding until the user confirms", (ROOT / "references" / "bom-review.md").read_text(encoding="utf-8"))
         self.assertIn("one crop per board", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))

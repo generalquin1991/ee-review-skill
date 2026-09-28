@@ -42,6 +42,8 @@ One finding per slide, in English, three to five sentences.
 
 The E96 resistor finding is one slide. The body is one verdict sentence. The values are a table with columns Value, References, and Recommended, and `"single_page": true`. A list of several parts, values, or addresses is a table in the same way, not a paragraph of reference designators. Pass it as `"table": {"columns": [...], "rows": [[...]]}`.
 
+The footprint pin check is its own slide, separate from other findings. The table lists every part whose pin table was opened, with columns Reference, MPN, Datasheet, and Result. Set `"single_page": true`. `accept` when every row matches. A disagreed pin still gets a boxed crop of that datasheet region.
+
 Use only these verdict forms:
 
 - `We recommend …` or `It is recommended to …`, followed by the part number or the value to use.

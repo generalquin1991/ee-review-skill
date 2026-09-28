@@ -145,7 +145,7 @@ this board, ask whether the pack has a protection board and a PTC before
 treating the cell as protected. Each I2C
 bus gets an address list. Clocks toward memory, a display, a camera, or another
 hard-to-rework interface get the rework-footprint check, and a net whose
-datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. A substitute for a
+datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. That check is one slide listing every part whose pin table was opened. A substitute for a
 key part stays out of the report until the user confirms that exact part.
 
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.

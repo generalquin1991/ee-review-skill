@@ -2,7 +2,7 @@
 
 This document is the anti-bias checklist that MUST be followed whenever a review
 asserts anything about component pins, nets, or connections in a netlist
-(`.tel`, `.net`, `.dsn`, KiCad `kicadxml`, etc.). It was created after several
+(`.tel`, `.net`, `.dsn`, KiCad `kicadxml`, Altium compiled nets, etc.). It was created after several
 critical findings were raised on a real 16-channel battery-jig review and then
 had to be **retracted** because the supporting evidence was wrong.
 
@@ -11,7 +11,7 @@ lines by prefix (`line.startswith("'")`) and therefore **missed continuation
 lines of long nets**, OR a claim made from memory/assumption instead of from the
 netlist itself.
 
-There are **two** independent parser traps, and both were hit in practice:
+There are **two** independent text-netlist parser traps, and both were hit in practice. Native Altium sources add a third trap: raw OLE records and drawing coordinates do not by themselves encode the project-level flattened net graph.
 
 1. **Missing continuation lines** — a scanner that reads only the first line of a
    long net silently drops the rest (the original bug).
@@ -28,7 +28,7 @@ There are **two** independent parser traps, and both were hit in practice:
 
 ## Rule 0 — Use the canonical parser, never line-prefix regex
 
-There are **two** source formats; pick the matching parser:
+There are **three** source paths; pick the matching parser:
 
 - **KiCad** (`.kicad_sch` / `.sch` / `.schdoc`): export the netlist as XML first —
   `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch` — then parse
@@ -42,8 +42,17 @@ There are **two** source formats; pick the matching parser:
   lines are indented and hold only `REF.PIN` tokens. Line-prefix scanning silently drops those
   continuation pins and will report a connected pin as "missing".
 
-Both classes expose the same interface — `pin_net`, `net_pins`, `component_pins`, `is_connected`,
-`missing_pins`, `verify_by_pinmap` — so the rest of this discipline is format-agnostic. (`KicadNetlist`
+- **Altium** (`.PrjPcb` with child `.SchDoc` files): parse with `altium-monkey` using
+  `AltiumDesign.from_prjpcb(...)` followed by `design.compile(force=True)`. Use the compiled
+  design's `nets`, `terminals`, and `endpoints`, and record diagnostics. Do not use raw OLE
+  records, `strings`, SVG/PDF geometry, or component coordinates as a connectivity parser. An
+  individual `AltiumSchDoc` without its project is limited to sheet-local inspection and cannot
+  prove flattened cross-sheet connectivity. Critical claims additionally require the diagnostic
+  and completeness gate in `references/altium-monkey.md`.
+
+The text-netlist classes expose the same interface — `pin_net`, `net_pins`, `component_pins`,
+`is_connected`, `missing_pins`, `verify_by_pinmap` — so that discipline is format-agnostic.
+`altium-monkey` uses compiled `nets` with `terminals`/`endpoints` instead. (`KicadNetlist`
 additionally exposes `lib_pins(ref)` = the device's full pin list, which is the convenient input to
 `missing_pins` for finding every unconnected pin.)
 
@@ -162,9 +171,9 @@ CH15 criticals in the battery-jig review (CH_SDA_L15 missing its mux drive;
 ALTER_L15 net absent) were re-confirmed with `component_pins` / `net_pins` after
 the parser bug was fixed — only then were they retained.
 
-## Rule 6 — PDF-only connectivity cannot be Critical
+## Rule 6 — Unsupported connectivity cannot be Critical
 
-A connectivity claim (connected, unconnected, shorted, swapped, missing from a net, pulled to a rail) is Critical only with a `TelNetlist` or `KicadNetlist` lookup quoted in the finding. A schematic PDF or screenshot without that lookup is at most `warning`, evidence `PDF-only; connection not proven`. If the sheet is unreadable, the row is `not verifiable`. A readable wrong value (setpoint, voltage rating, abs-max) can still be Critical; that is a value claim.
+A connectivity claim (connected, unconnected, shorted, swapped, missing from a net, pulled to a rail) is Critical only with a `TelNetlist`, `KicadNetlist`, or successful `altium-monkey` compiled-project lookup quoted in the finding. A schematic PDF, screenshot, raw OLE record dump, SVG geometry, or component-coordinate inference without that lookup is at most `warning`, evidence `PDF-only; connection not proven` or an equivalent unsupported-source note. If the source cannot be compiled or the sheet is unreadable, the row is `not verifiable`. A readable wrong value (setpoint, voltage rating, abs-max) can still be Critical; that is a value claim.
 
 ## Failure modes observed (do not repeat)
 

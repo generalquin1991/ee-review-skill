@@ -386,13 +386,14 @@ For schematic review, the following formats are accepted:
 |--------|-----------|-------|
 | PDF (preferred) | .pdf | Visual review of schematic pages |
 | KiCad schematic | .kicad_sch | Full netlist extraction |
-| Altium schematic | .SchDoc | Convert via kicad-cli sch import |
+| Altium project schematic | .PrjPcb + child .SchDoc | Parse with pinned `altium-monkey` project compiler; use KiCad import only as a fallback |
+| Altium sheet only | .SchDoc | Sheet-local inspection only; no cross-sheet connectivity claim without a project or exported pin-level netlist |
 | Eagle schematic | .sch | XML-based, parseable |
 | Netlist (any) | .net, .csv | Net connection data only |
 
 ### Schematic conversion:
 ```bash
-# Altium schematic -> KiCad
+# Altium schematic fallback -> KiCad (only when native altium-monkey parsing fails)
 kicad-cli sch import --format altium schematic.SchDoc -o schematic.kicad_sch
 
 # Eagle schematic -> KiCad

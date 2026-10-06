@@ -32,9 +32,9 @@ Every file this review writes goes in `<project>/ee-review/`, next to the schema
 
 ## PDF and connectivity
 
-A connectivity claim says a pin is connected, unconnected, shorted, swapped, missing from a net, or pulled to a rail. It is `critical` only when the finding quotes a `TelNetlist` or `KicadNetlist` lookup (`pin_net`, `net_pins`, `component_pins`, or `missing_pins`) for that ref and pin.
+A connectivity claim says a pin is connected, unconnected, shorted, swapped, missing from a net, or pulled to a rail. It is `critical` only when the finding quotes a canonical parser lookup: `TelNetlist` or `KicadNetlist` (`pin_net`, `net_pins`, `component_pins`, or `missing_pins`), or an `altium-monkey` compiled project lookup (`compiled.nets` with the exact net terminals/endpoints) for that ref and pin. Altium Critical claims additionally require the diagnostic/completeness gate in `references/altium-monkey.md`: zero compiler errors, zero unresolved compiler warnings, all project schematic documents loaded, and the target component/pin present in the compiled component inventory.
 
-A schematic PDF, screenshot, or prose description without that lookup cannot carry a Critical connectivity finding. The maximum severity is `warning`, and the evidence cell says `PDF-only; connection not proven`. If the sheet is unreadable, the row is `not verifiable`.
+A schematic PDF, screenshot, raw OLE/record dump, SVG geometry, component coordinate inference, or prose description without that lookup cannot carry a Critical connectivity finding. The maximum severity is `warning`, and the evidence cell says `PDF-only; connection not proven` or names the unsupported source representation. If the sheet/source is unreadable, the row is `not verifiable`.
 
 A value that is printed and readable (resistor value, regulator setpoint equation, capacitor voltage marking) can still be Critical when the citation shows that value exceeds an absolute maximum or a required setpoint. That is a value claim, not a connectivity claim.
 

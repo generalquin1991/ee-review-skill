@@ -1,6 +1,6 @@
 # Schematic review checks
 
-Apply `references/review-contract.md` to every row. The Pass and Fail columns are the verdict. If the Evidence file is not in the review, record `not verifiable` and do not open a finding. Severity in the table is the ceiling after the PDF connectivity rule: a connectivity fail on a PDF with no parser lookup is at most `warning`.
+Apply `references/review-contract.md` to every row. The Pass and Fail columns are the verdict. If the Evidence file is not in the review, record `not verifiable` and do not open a finding. Severity in the table is the ceiling after the canonical-parser connectivity rule: a connectivity fail on a PDF or unsupported source with no parser lookup is at most `warning`; an Altium compiled-project lookup must also pass the gate in `references/altium-monkey.md`.
 
 Citation means the local PDF in `ee-review/datasheets/`. Copy the table or section id into the finding. A blank citation, or a datasheet that was only viewed and not saved, makes the row `not verifiable`.
 

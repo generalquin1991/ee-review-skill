@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审, design review ppt, 评审PPT."
+description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, mandatory BOM SKU standardization, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审, design review ppt, 评审PPT."
 ---
 
 # EE Review - Electronics Engineering Design Review
@@ -148,6 +148,19 @@ hard-to-rework interface get the rework-footprint check, and a net whose
 datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. That check is one slide listing every part whose pin table was opened. A substitute for a
 key part stays out of the report until the user confirms that exact part.
 
+When an open-drain or open-collector output is present, record the output's
+`VOL`, `IOL`, `ILKG`, `VIH/VIL`, pull-up current, high-state voltage loss, edge
+timing, and sleep/reset/ship/off-state behavior. Do not treat an OD/OC output as
+automatically acceptable in a low-power design.
+
+BOM SKU standardization is mandatory for every review. When a BOM is present, apply
+the unique-SKU inventory and passive-component consolidation checks in
+`references/bom-review.md`, including resistors, capacitors, and other repeated
+passives. When no BOM is present, record `BOM SKU standardization` as `not
+verifiable` and name the missing BOM and required fields. Do not silently skip the
+check, and do not turn an optional consolidation suggestion into a schematic
+electrical defect.
+
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 `confirmed` cites the evidence file. If the evidence is missing, status is
 `not verifiable` and the row names the missing file. Do not add a finding or a
@@ -228,7 +241,7 @@ Assemble review results into the following JSON structure (save as a temporary `
     "overall_summary": "<2-3 sentence overall assessment>",
     "coverage": [
         {
-            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|CERE>",
+            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|bom-sku-standardization|CERE>",
             "trigger": "<feature trigger or expected evidence>",
             "status": "<confirmed|finding|not applicable|not verifiable>",
             "evidence": "<file/page, finding location, or reason unavailable>"
@@ -405,14 +418,15 @@ respectively) and must be confirmed for every design.
 
 ### BOM Review Dimensions
 
-When BOM files are detected, apply these review dimensions (see `references/bom-review.md` for detailed checklists):
+When BOM files are detected, apply these review dimensions (see `references/bom-review.md` for detailed checklists). If no BOM is supplied, record the mandatory BOM SKU Standardization coverage row as `not verifiable` and name the missing BOM fields.
 
 1. **Component Availability & Lifecycle** - Stock, lead time, and lifecycle only from a page fetched in this review or a dated user export. Order when evidence exists: LCSC first, then Digi-Key, Mouser, Arrow, Avnet. No page and no export means `not verifiable`. Do not invent quantities. See `references/bom-review.md` §1 and `references/review-contract.md`.
 2. **Second Source & Alternatives** - Pin-compatible alternatives, parameter-based substitution, standardization.
-3. **Part Number Accuracy** - MPN completeness, description quality, reference designator consistency.
-4. **Parameter Verification** - Electrical parameters, environmental ratings, compliance.
-5. **Package & Footprint Verification** - Package documentation, footprint-to-package matching, thermal/mechanical, assembly packaging (MSL, tape & reel), package alternatives.
-6. **Cost Analysis** - Cost optimization, supply chain risk assessment.
+3. **BOM SKU Standardization** - Mandatory inventory of unique passive-component SKUs and evidence-based consolidation opportunities. See `references/bom-review.md` §2.4.
+4. **Part Number Accuracy** - MPN completeness, description quality, reference designator consistency.
+5. **Parameter Verification** - Electrical parameters, environmental ratings, compliance.
+6. **Package & Footprint Verification** - Package documentation, footprint-to-package matching, thermal/mechanical, assembly packaging (MSL, tape & reel), package alternatives.
+7. **Cost Analysis** - Cost optimization, supply chain risk assessment.
 
 ### Standards Cross-Reference
 

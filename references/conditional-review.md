@@ -175,6 +175,12 @@ following:
 - **Pull-resistor leakage vs. noise:** weak pull-ups cut leakage but slow edges;
   confirm pull values are chosen for the lowest-leakage acceptable speed, not a
   blanket 4.7k.
+- **Open-drain interrupt and status outputs:** for every `/INT`, `/PG`, `ALERT`,
+  or `FAULT` output, read the datasheet `VOL`, `IOL`, `ILKG`, and `VIH/VIL`
+  conditions at the actual pull-up rail. Calculate the asserted pull-up current,
+  high-state leakage voltage loss, edge timing, and sleep/reset/ship/off-state
+  back-drive path. An OD/OC output is not automatically acceptable for a
+  low-power design.
 - **Power-gated domains:** loads switched by load switch/FET must be truly
   isolated when off — no sneak path through protection diodes, rail pull-ups, or
   unpowered bidirectional IO back-driving the rail. Verify the gate/EN default
@@ -357,6 +363,7 @@ absent:
 | DFM/DFT readiness | production design | confirmed/finding/not applicable/not verifiable | location |
 | Firmware-HW co-verification | any HW gated by firmware | confirmed/finding/not applicable/not verifiable | location |
 | Component availability (sourcing) | BOM/component list or N/A evidence | confirmed/finding/not applicable/not verifiable | location / primary source |
+| BOM SKU standardization | every review; BOM required for a completed result | confirmed/finding/not applicable/not verifiable | BOM file, grouped references, and consolidation table |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
 | E96 resistors | resistors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | off-grid references |
 | Schematic value versus ordered part | schematic value and BOM MPN or description both readable | confirmed/finding/not applicable/not verifiable | value or package mismatch |

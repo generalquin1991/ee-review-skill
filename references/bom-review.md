@@ -48,6 +48,31 @@ Section 1 is the verdict for second source, lifecycle, and MPN suffix. Do not ra
 - Confirm component tolerance is appropriate (5% vs 1% vs 0.1%).
 - Verify package size standardization (minimize unique footprint count).
 
+### 2.4 Unique SKU Inventory and Passive Standardization (mandatory)
+
+Run this check for every review that includes a BOM. If no BOM is supplied, record
+the coverage row as `not verifiable` and name the missing file and required fields.
+This is a BOM/DFM optimization result, not automatically a schematic defect.
+
+| Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
+|---|---|---|---|---|---|---|
+| Unique SKU inventory | Any BOM with resistors, capacitors, inductors, ferrites, diodes, or other repeated passives | Complete BOM with reference designators, MPN, manufacturer, value, tolerance, voltage/current rating, dielectric, package, and quantity | Every unique MPN and every electrical/package grouping is counted, with references and quantities | BOM is present but the fields needed to group or count parts are missing | not verifiable; warning only when a stated release or standardization requirement cannot be met | BOM file and its revision |
+| Passive SKU consolidation | Two or more passive SKUs have compatible electrical and mechanical requirements | Schematic/netlist function, BOM fields, relevant part datasheets, and DC-bias/derating data for capacitors | Candidate substitutes preserve value, tolerance, rating, dielectric, package, power, temperature, ESR/ripple, and function; affected references and expected SKU reduction are listed | A proposed merge violates one of those constraints, or the recommendation lacks enough evidence to verify equivalence | warning when a required standardization target is missed; otherwise optimization recommendation, not a defect | Part datasheets and schematic/netlist |
+
+For resistors, compare resistance, tolerance, power, working voltage, temperature
+coefficient, package, and pulse requirements. For capacitors, compare capacitance,
+tolerance, voltage rating, dielectric, package, ESR/ripple, temperature, and
+effective capacitance after DC bias. Do not merge parts solely because nominal
+values are close. Keep precision, matched, timing, filter, crystal-load,
+ESD/surge, decoupling, and high-reliability positions separate unless the cited
+requirements prove interchangeability.
+
+The output must include: current SKU, candidate standard SKU, affected references,
+estimated SKU reduction, validation conditions, and risk. A substitute for a key
+part remains outside the report until the user confirms that exact MPN. If the BOM
+has no explicit SKU-reduction target, still perform the inventory and provide
+evidence-based opportunities as optimization recommendations.
+
 ---
 
 ## 3. Part Number Accuracy (型号准确性)

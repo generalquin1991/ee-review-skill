@@ -14,7 +14,7 @@ python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>
 
 A slide needs a concrete location (reference designator, net, or a datasheet table row) and one verdict sentence. That includes an explicit accept. `not verifiable`, a missing file, the coverage table, and S/A/B/C grades stay in the HTML report. They do not get a slide.
 
-The deck body is the circuit, the number, and the verdict. Do not write why the review process included the item. Forbidden wording includes "according to the review rules", the skill name, the checklist, the coverage table, sign-off, and the grade labels Critical, Warning, Info, S, A, B, C, D. A proposed alternate part is not a slide until the user has confirmed that exact part.
+The deck body is the circuit, the number, and the verdict. Do not write why the review process included the item. Forbidden wording includes "according to the review rules", the skill name, the checklist, the coverage table, sign-off, and the grade labels Critical, Major, Minor, Okay, S, A, B, C, D. A proposed alternate part is not a slide until the user has confirmed that exact part.
 
 Which EMC or safety phenomena apply is decided from the schematic and the PRD, when a PRD was provided, using `references/conditional-review.md`. That choice is not a slide and not a sentence. A missing USB, HDMI, or power-entry filter is a slide only as the part and the nets: populated, DNP footprint, or absent.
 
@@ -37,7 +37,7 @@ Before generating or modifying the deck, explicitly ask the user to confirm the 
 One finding per slide, in English, three to five sentences.
 
 1. Eyebrow is the domain: `Schematic · <area>`, `BOM · <area>`, `PCB / layout`, or `DFM`.
-2. Subtitle is the one existing line under the eyebrow. It is the one-sentence summary of the issue, or of the accept. At most 60 characters. That placeholder does not wrap, and there is no second line for the same sentence. A longer subtitle is rejected. Set `severity` to `critical`, `warning`, `info`, or `accept`. The command colors that line only: dark red, dark orange, blue, or green. Do not write the severity word in the sentence.
+2. Subtitle is the one existing line under the eyebrow. It is the one-sentence summary of the issue, or of the accept. At most 60 characters. That placeholder does not wrap, and there is no second line for the same sentence. A longer subtitle is rejected. Set `severity` to `critical`, `major`, `minor`, or `okay`. The command colors that line only: red, yellow, black, or green. Do not write the severity word in the sentence.
 3. Body states the circuit (part, value, net), then the calculation or the datasheet comparison, then one verdict.
 
 The E96 resistor finding is one slide. The body is one verdict sentence. The values are a table with columns Value, References, and Recommended, and `"single_page": true`. A list of several parts, values, or addresses is a table in the same way, not a paragraph of reference designators. Pass it as `"table": {"columns": [...], "rows": [[...]]}`.

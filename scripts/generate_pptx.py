@@ -57,8 +57,12 @@ def set_shape_text(xml, name, text):
 
 SUBTITLE_COLORS = {
     "critical": "C62828",
-    "warning": "E65100",
-    "info": "1565C0",
+    "major": "F1C40F",
+    "minor": "000000",
+    "okay": "2E7D32",
+    # Backward-compatible aliases for existing deck.json files.
+    "warning": "F1C40F",
+    "info": "000000",
     "accept": "2E7D32",
 }
 

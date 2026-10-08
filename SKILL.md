@@ -177,7 +177,7 @@ the review contract: no fetched page and no dated user export means
 A connectivity finding is Critical only with a successful canonical-parser lookup
 quoted in the finding: `TelNetlist`, `KicadNetlist`, or an `altium-monkey`
 compiled-project lookup that passes its diagnostic/completeness gate. PDF-only
-or unsupported-source connectivity stays at warning.
+or unsupported-source connectivity stays at major.
 
 ### Step 3: Execute Review
 
@@ -193,7 +193,7 @@ For each applicable review dimension, systematically evaluate the design:
    - Any claim that a pin is connected, miswired, or **not connected** must be proven by a parser lookup: `TelNetlist`, `KicadNetlist`, or the `altium-monkey` compiled design model after its diagnostic/completeness gate passes. A "device not connected" claim requires a full component/pin lookup or compiled-net terminal search to confirm the pin is absent across the entire design. Quote the exact parser/version, source/project path, net name, reference, pin, compile summary, and diagnostics in the evidence.
 2. **Apply checklist items** - Go through each item in the reference checklist for the detected dimension.
 3. **Identify findings** - Record each issue found with:
-   - Severity level: `critical`, `warning`, or `info`
+   - Severity level: `critical`, `major`, `minor`, or `okay`
    - Title (concise summary)
    - Description (detailed explanation of the issue)
    - Location (sheet number, component reference, coordinate, or BOM line)
@@ -204,7 +204,7 @@ For each applicable review dimension, systematically evaluate the design:
 
 Use one policy, from `references/review-contract.md`. `scripts/generate_report.py` applies the same cap when it renders the report.
 
-Score each dimension from 100. Deduct 15 per Critical, 5 per Warning, 1 per Info. Floor at 0.
+Score each dimension from 100. Deduct 15 per Critical, 5 per Major, 1 per Minor. Okay findings do not reduce the score. Floor at 0.
 
 | Score | Letter | Also required |
 |-------|--------|----------------|
@@ -256,7 +256,7 @@ Assemble review results into the following JSON structure (save as a temporary `
             "max_score": 100,
             "findings": [
                 {
-                    "severity": "<critical|warning|info>",
+                    "severity": "<critical|major|minor|okay>",
                     "title": "<finding title>",
                     "description": "<detailed description>",
                     "location": "<sheet, component, or BOM line>",
@@ -355,7 +355,7 @@ python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>
 
 Do not assemble the PPT with python-pptx, hand-edited slide XML, a copied template, or a one-off script written during the review. If the command cannot express the layout, change the script in this skill and run it again.
 
-A slide needs a location (reference, net, or datasheet row) and a verdict, including an explicit accept. `not verifiable`, missing files, the coverage table, and S/A/B/C grades stay in the HTML report. The one-line summary is the existing subtitle, at most 60 characters. A longer line is rejected so it does not wrap, and it is not repeated in a second placeholder. `severity` colors that line: `critical` dark red, `warning` dark orange, `info` blue, `accept` green. Do not write those words in the sentence. When the verdict uses a datasheet equation, table, recommended range, or pin function, one picture is a boxed crop of that region from `ee-review/datasheets/`. A page number in the sentence does not replace the crop.
+A slide needs a location (reference, net, or datasheet row) and a verdict, including an explicit accept. `not verifiable`, missing files, the coverage table, and S/A/B/C grades stay in the HTML report. The one-line summary is the existing subtitle, at most 60 characters. A longer line is rejected so it does not wrap, and it is not repeated in a second placeholder. `severity` colors that line: `critical` red, `major` yellow, `minor` black, `okay` green. Do not write those words in the sentence. When the verdict uses a datasheet equation, table, recommended range, or pin function, one picture is a boxed crop of that region from `ee-review/datasheets/`. A page number in the sentence does not replace the crop.
 
 Before EMC or safety findings, decide which phenomena apply from the schematic and from the PRD if one was provided. The rule is in `references/conditional-review.md` under EMC and safety applicability. Do not write that choice into the HTML narrative or the PPT. Do review the schematic against it: cable filters on USB and HDMI, power-entry filters, and DNP footprints where a filter is not yet fitted. A TVS alone is not that filter. Findings name the connector, the nets, and whether the filter is populated, DNP, or missing.
 
@@ -440,8 +440,9 @@ Always reference `references/standards-reference.md` during review to:
 | Severity | Icon | Color | Definition | Action Required |
 |----------|------|-------|-----------|----------------|
 | Critical | Red circle | #e74c3c | Design will fail or cause reliability/safety issues | Must fix before production |
-| Warning | Yellow circle | #f39c12 | Design may work but has elevated risk or non-compliance | Strongly recommend fixing |
-| Info | Green circle | #27ae60 | Suggestion for optimization or best practice | Optional improvement |
+| Major | Yellow circle | #f1c40f | Design may work but has elevated risk or non-compliance | Strongly recommend fixing |
+| Minor | Black/default | #000000 | Suggestion for optimization or best practice | Optional improvement |
+| Okay | Green circle | #27ae60 | Evidence supports an acceptable condition | No corrective action required |
 
 ## Key Review Principles
 
@@ -450,7 +451,7 @@ Always reference `references/standards-reference.md` during review to:
 3. **Be actionable** - Every finding must include a concrete recommendation, not just a description of the problem.
 4. **Cross-reference standards** - When flagging an issue, cite the relevant standard (e.g., "Per IPC-2221 Table 6-1, minimum conductor spacing for 30V is 0.1mm").
 5. **Prioritize by risk** - Always highlight critical findings first in the summary and top risks section.
-6. **Maintain objectivity** - Base a finding on a file you opened. If the file is missing, mark the row `not verifiable`. If the file shows a risk that does not meet a Fail condition, use `warning`.
+6. **Maintain objectivity** - Base a finding on a file you opened. If the file is missing, mark the row `not verifiable`. If the file shows a risk that does not meet a Fail condition, use `major` or `minor` according to the impact.
 7. **Verify, don't assume** - Every connection-related finding MUST be backed by `TelNetlist` (TARGET `.tel`/`.net`/`.dsn`) or `KicadNetlist` (KiCad XML). Do not parse with line-prefix regex. For substitute parts, verify the substitute's datasheet pinout before asserting a defect carried over from another part. Derive I2C addresses by tracing each strap pin to its net. A PDF or screenshot without a parser lookup cannot be a Critical connectivity finding.
 8. **Close the coverage loop** - The final report includes the coverage table from `references/conditional-review.md`. Diagram file paths are evidence only when Step 1.8 required the diagrams. ESD, CERE/project baseline, and triggered feature checks each have an explicit status. `confirmed` cites a file. Missing evidence is `not verifiable`.
 
@@ -535,7 +536,7 @@ No assets required. The HTML report is generated dynamically by the script.
 1. Classify files - PDF = schematic, CSV = BOM
 2. No conversion needed (PDF and CSV are directly reviewable)
 3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, `references/review-contract.md`, and `references/architecture-diagrams.md`
-4. A PDF has no parser lookup. Extract readable values and part numbers. Any connectivity statement is at most a warning. Do not file a Critical for an open pin, a short, or a missing pull-up from the PDF alone.
+4. A PDF has no parser lookup. Extract readable values and part numbers. Any connectivity statement is at most a major finding. Do not file a Critical for an open pin, a short, or a missing pull-up from the PDF alone.
 5. Parse the BOM only for fields the file contains. Stock and lifecycle stay `not verifiable` unless a fetched page or a dated export is attached.
 6. Apply `references/schematic-review.md` and `references/bom-review.md`. Leave a row `not verifiable` when its evidence file is absent.
 7. Cross-reference findings with the citation you opened, not with the name of a standard.

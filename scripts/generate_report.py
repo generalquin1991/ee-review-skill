@@ -99,8 +99,13 @@ GRADE_LABELS = {
 
 SEVERITY_CONFIG = {
     "critical": {"icon": "&#128308;", "color": "#e74c3c", "label": "Critical", "bg": "#fdeaea"},
-    "warning": {"icon": "&#128992;", "color": "#f39c12", "label": "Warning", "bg": "#fef5e7"},
-    "info": {"icon": "&#128994;", "color": "#27ae60", "label": "Info", "bg": "#eafaf1"},
+    "major": {"icon": "", "color": "#f1c40f", "label": "Major", "bg": "#fff9db"},
+    "minor": {"icon": "", "color": "#000000", "label": "Minor", "bg": "#ffffff"},
+    "okay": {"icon": "&#128994;", "color": "#27ae60", "label": "Okay", "bg": "#eafaf1"},
+    # Backward-compatible aliases for existing review JSON files.
+    "warning": {"icon": "", "color": "#f1c40f", "label": "Major", "bg": "#fff9db"},
+    "info": {"icon": "", "color": "#000000", "label": "Minor", "bg": "#ffffff"},
+    "accept": {"icon": "&#128994;", "color": "#27ae60", "label": "Okay", "bg": "#eafaf1"},
 }
 
 CATEGORY_LABELS = {

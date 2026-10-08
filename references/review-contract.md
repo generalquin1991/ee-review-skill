@@ -8,7 +8,7 @@ Every checklist row is a decision, not a reminder to look. Record it with all si
 | Evidence | The file, sheet, ref.pin, net, BOM line, or layout object the verdict uses. |
 | Pass | The observable condition that closes the check. |
 | Fail | The observable condition that opens a finding. |
-| Severity | `critical`, `warning`, or `info`, already capped by the rules below. |
+| Severity | `critical`, `major`, `minor`, or `okay`, already capped by the rules below. |
 | Citation | Local datasheet PDF in `ee-review/datasheets/`, plus the document title, revision if the file shows one, and the table or section. "Per datasheet" with no file is not a citation. |
 
 ## Status vocabulary
@@ -34,7 +34,7 @@ Every file this review writes goes in `<project>/ee-review/`, next to the schema
 
 A connectivity claim says a pin is connected, unconnected, shorted, swapped, missing from a net, or pulled to a rail. It is `critical` only when the finding quotes a canonical parser lookup: `TelNetlist` or `KicadNetlist` (`pin_net`, `net_pins`, `component_pins`, or `missing_pins`), or an `altium-monkey` compiled project lookup (`compiled.nets` with the exact net terminals/endpoints) for that ref and pin. Altium Critical claims additionally require the diagnostic/completeness gate in `references/altium-monkey.md`: zero compiler errors, zero unresolved compiler warnings, all project schematic documents loaded, and the target component/pin present in the compiled component inventory.
 
-A schematic PDF, screenshot, raw OLE/record dump, SVG geometry, component coordinate inference, or prose description without that lookup cannot carry a Critical connectivity finding. The maximum severity is `warning`, and the evidence cell says `PDF-only; connection not proven` or names the unsupported source representation. If the sheet/source is unreadable, the row is `not verifiable`.
+A schematic PDF, screenshot, raw OLE/record dump, SVG geometry, component coordinate inference, or prose description without that lookup cannot carry a Critical connectivity finding. The maximum severity is `major`, and the evidence cell says `PDF-only; connection not proven` or names the unsupported source representation. If the sheet/source is unreadable, the row is `not verifiable`.
 
 A value that is printed and readable (resistor value, regulator setpoint equation, capacitor voltage marking) can still be Critical when the citation shows that value exceeds an absolute maximum or a required setpoint. That is a value claim, not a connectivity claim.
 
@@ -59,7 +59,7 @@ If the diagram is needed and the file is missing, that row is `not verifiable` a
 
 ## Grade policy
 
-Score each dimension from 100. Deduct 15 for each Critical, 5 for each Warning, 1 for each Info. Floor at 0.
+Score each dimension from 100. Deduct 15 for each Critical, 5 for each Major, 1 for each Minor. Okay findings do not reduce the score. Floor at 0.
 
 Map the score to a letter:
 

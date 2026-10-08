@@ -361,7 +361,7 @@ Before EMC or safety findings, decide which phenomena apply from the schematic a
 
 KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. Text netlists use `scripts/parse_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Boards that `scripts/convert_layout.py` already supports stay on that path. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
 
-Propose `project_code`, `designer`, `reviewer`, and `review_date` before writing `deck.json`. Take the project code from the directory or the title block. Ask for a designer or reviewer name you cannot read from the design. Use today's date as `YYYYMMDD`. Do not copy an identity from an older deck.
+Before generating or modifying a review PPT, explicitly ask the user to confirm the cover's `designer` and `reviewer` names. This confirmation is mandatory even when a title block, an existing `deck.json`, or an older deck provides a plausible identity. Present the proposed `project_code`, `designer`, `reviewer`, and `review_date` and wait for confirmation before writing `deck.json` or the PPT. Use the user's exact names, never silently reuse an identity from an older deck, and use today's date as `YYYYMMDD`. When names are already supplied in the current request, treat that as the confirmation and do not ask again.
 
 ## Review Dimensions
 

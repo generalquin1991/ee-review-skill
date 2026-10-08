@@ -30,7 +30,7 @@ The template cover keeps its background. Fill the fields from the current projec
 | `reviewer` | The name the user gives for this review. If they have not, ask. |
 | `review_date` | Today, `YYYYMMDD`. |
 
-Show the proposed cover values before writing `deck.json`. If the user changes one, use theirs.
+Before generating or modifying the deck, explicitly ask the user to confirm the `designer` and `reviewer` names that will appear on the cover. This is required even when those names can be read from the title block or an existing deck. Also show the proposed `project_code` and `review_date`; wait for confirmation before writing `deck.json` or the PPT. Use the user's exact names, never silently reuse an older deck's identity, and treat names already supplied in the current request as confirmation.
 
 ## Slide copy
 

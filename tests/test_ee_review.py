@@ -209,6 +209,15 @@ class ValidationPreflightTests(unittest.TestCase):
 
 
 class SkillCoverageTests(unittest.TestCase):
+    def test_ppt_cover_identity_requires_current_user_confirmation(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        ppt_style = (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8")
+        for text in (skill, ppt_style):
+            self.assertIn("explicitly ask the user to confirm", text)
+            self.assertIn("even when", text)
+            self.assertIn("already supplied in the current request", text)
+            self.assertIn("never silently reuse", text)
+
     def test_conditional_matrix_is_linked_and_covers_requested_features(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         matrix = (ROOT / "references" / "conditional-review.md").read_text(encoding="utf-8")

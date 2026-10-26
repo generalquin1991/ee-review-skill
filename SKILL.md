@@ -140,18 +140,33 @@ MCU or SoC is present, record its minimum-system check against that part's
 datasheet figure. When logic pins share a net, record the IO-level check. When a
 charger is present, record whether charging starts with no firmware, whether
 the running load is on a power-path pin separate from the cell, and whether the
-cell can reach termination. If the cell connector has no protection IC on
-this board, ask whether the pack has a protection board and a PTC before
-treating the cell as protected. Each I2C
+cell can reach termination. When the charger supports a power path, separately
+trace system loads to VSYS/SYS or VBAT/BAT and assess system stability during
+precharge/trickle and charge-state transitions; do not assume that a VBAT-fed
+system load is safe or stable. If datasheet limits do not establish margin,
+require measured VSYS/VBAT waveforms under relevant worst-case conditions. If
+the cell connector has no protection IC on this board, ask whether the pack has
+a protection board and a PTC before treating the cell as protected. Each I2C
 bus gets an address list. Clocks toward memory, a display, a camera, or another
 hard-to-rework interface get the rework-footprint check, and a net whose
 datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. That check is one slide listing every part whose pin table was opened. A substitute for a
 key part stays out of the report until the user confirms that exact part.
 
+When an MCU/SoC maintains a power latch or shutdown depends on its GPIO, record
+the MCU-held power-latch shutdown row in `references/schematic-review.md`;
+otherwise mark that conditional check `not applicable` with the trigger evidence.
+
 When an open-drain or open-collector output is present, record the output's
 `VOL`, `IOL`, `ILKG`, `VIH/VIL`, pull-up current, high-state voltage loss, edge
 timing, and sleep/reset/ship/off-state behavior. Do not treat an OD/OC output as
 automatically acceptable in a low-power design.
+
+When an MCU/SoC GPIO or firmware-controlled signal maintains a power latch,
+record the MCU-held power-latch shutdown check from
+`references/schematic-review.md`. Verify BOR/reset GPIO behavior and the
+hold-path release timing during rail collapse; do not assume that BOR forces
+the output low. Include the shutdown sequence and measured waveform when
+datasheet limits alone do not establish margin.
 
 BOM SKU standardization is mandatory for every review. When a BOM is present, apply
 the unique-SKU inventory and passive-component consolidation checks in
@@ -241,7 +256,7 @@ Assemble review results into the following JSON structure (save as a temporary `
     "overall_summary": "<2-3 sentence overall assessment>",
     "coverage": [
         {
-            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|bom-sku-standardization|CERE>",
+            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|bom-sku-standardization|charger-system-load-rail|CERE>",
             "trigger": "<feature trigger or expected evidence>",
             "status": "<confirmed|finding|not applicable|not verifiable>",
             "evidence": "<file/page, finding location, or reason unavailable>"
@@ -374,10 +389,10 @@ When schematic files are detected, apply these review dimensions (see `reference
 3. **Protection Circuits** - ESD protection, over-voltage/over-current, isolation.
 4. **Circuit Logic & Correctness** - Functional verification, feedback loops, timing, component values.
 5. **Design Rule Checks** - Netlist consistency, connector pinout, documentation.
-6. **Low-Power Design** - Sleep/standby current budget, leakage (floating/unused pins, pull-resistor choice), power-gated domains and off-state isolation, regulator quiescent current / light-load efficiency, always-on domain minimization, RTC/backup domain, ship/storage mode. Mandatory for battery/portable/always-on designs and weighted 1.5x there. See `references/conditional-review.md` (Low-Power Design trigger) and `references/schematic-review.md` §6.
+6. **Low-Power Design** - Sleep/standby current budget, leakage (floating/unused pins, pull-resistor choice), power-gated domains and off-state isolation, MCU-held power-latch shutdown through BOR/reset and rail collapse, regulator quiescent current / light-load efficiency, always-on domain minimization, RTC/backup domain, ship/storage mode. Mandatory for battery/portable/always-on designs and weighted 1.5x there. See `references/conditional-review.md` (Low-Power Design trigger) and `references/schematic-review.md` §6.
 7. **Safety (Electrical)** - Creepage/clearance, isolation barriers, over-voltage/current protection against the accessible-voltage class, and Li-Po battery safety (thermal runaway, over-charge/discharge, short, reverse, ship mode). See `references/schematic-review.md` §8 and `references/conditional-review.md` (Safety trigger).
 8. **DFM/DFT** - Test points, programming/debug headers, ICT access, panelization, process margins. See `references/schematic-review.md` §9 and `references/conditional-review.md` (DFM/DFT trigger).
-9. **Firmware-HW Co-Verification** - Hardware whose enable/configuration depends on firmware (chargers, load switches, boost, PMIC) must have the firmware sequence specified and cross-checked; "works only after FW runs" is a finding, not an assumption. See `references/schematic-review.md` §10.
+9. **Firmware-HW Co-Verification** - Hardware whose enable/configuration depends on firmware (chargers, load switches, boost, PMIC, or MCU-held power latch) must have startup and shutdown sequences specified and cross-checked, including power release before MCU BOR/reset makes GPIO behavior uncertain; "works only after FW runs" is a finding, not an assumption. See `references/schematic-review.md` §10.
 
 For battery designs, Power Supply Design must include temperature protection,
 charge/discharge limits, and usable-energy analysis, Low-Power Design must

@@ -68,6 +68,24 @@ PACK nets, or battery-related BOM text. Review all of the following:
   only when the on-state load is below the termination current. Name the
   missing running-load current as `not verifiable` instead of assuming the cell
   finishes.
+- **System load rail (VSYS/SYS versus VBAT/BAT):** when the charger datasheet
+  specifies a power-path function or separate system and battery pins, trace
+  every system load to the actual charger pin/net. The intended architecture is
+  normally to power the system from SYS/VSYS and reserve BAT/VBAT for the cell,
+  unless that charger's datasheet explicitly supports another arrangement.
+  Assess the VBAT-fed load risk during precharge/trickle, transition to normal
+  charging, charge termination, adapter insertion/removal, and the minimum-cell
+  condition. A load on VBAT can draw from the cell or keep the charger in
+  precharge/trickle, and may cause the system rail to dip, reset, or cycle;
+  determine whether that behavior is possible for the specific charger rather
+  than assuming all power-path ICs behave alike. Use the charger block diagram,
+  mode-specific current/voltage limits, system load budget, and parser-traced
+  nets. If those limits do not establish margin, require measured VSYS, VBAT,
+  charger-status, and load-current waveforms under the relevant worst-case
+  conditions. Missing topology, operating limits, load budget, or required
+  measurements means `not verifiable`. Apply the dedicated row in
+  `references/schematic-review.md`; do not treat battery-load termination
+  analysis as a substitute for system-rail stability analysis.
 - **Pack protection and PTC:** when the cell connector goes to the charger
   without a protection IC or back-to-back FETs on this board, ask whether the
   pack includes a protection board and a series PTC. Apply that row in
@@ -186,6 +204,19 @@ following:
   unpowered bidirectional IO back-driving the rail. Verify the gate/EN default
   state (an active-low enable needs a pulldown so it stays off until firmware
   acts). A regulator left enabled "just in case" defeats the gate.
+- **MCU-held power latch and shutdown:** trigger whenever an MCU/SoC GPIO or
+  firmware-controlled signal maintains the main power path, including a
+  load-switch/PMIC enable or a MOSFET self-latch. Trace the hold path and check
+  the MCU's guaranteed operating voltage, BOR/reset threshold, GPIO state and
+  drive capability during reset, external bias, and the switch/FET release
+  threshold. Verify that firmware or independent hardware releases the latch
+  before the MCU leaves its guaranteed operating range as the rail falls. Check
+  whether an undefined/high-impedance GPIO can keep or reassert the latch and
+  cause repeated BOR/restart instead of shutdown. Require a shutdown sequence
+  and, when datasheet limits do not prove the margin, a measured rail/hold-signal
+  waveform across the stated input, load, and temperature range. Mark the check
+  `not verifiable` when those limits, sequence, or measurement are unavailable;
+  do not assume the GPIO goes low at BOR.
 - **Regulator quiescent current & light-load efficiency:** the always-on rail
   must use a nano-Iq LDO/PMIC; switching regulators must keep acceptable
   efficiency at the typical light-load current, not only at full load.
@@ -372,6 +403,7 @@ absent:
 | IO level | a net joining two logic pins | confirmed/finding/not applicable/not verifiable | driver and receiver |
 | Charge by default | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | CE/EN or power-on default |
 | Power path and full charge | a charger, else not applicable | confirmed/finding/not applicable/not verifiable | SYS net versus battery net |
+| Charger system-load rail (VSYS/SYS vs VBAT/BAT) | a charger datasheet specifies a power path or separate system and battery pins, else not applicable | confirmed/finding/not applicable/not verifiable | parser-traced system-load net, charger mode limits, and stability evidence |
 | Pack protection and PTC | a cell connector without a protector on this board | confirmed/finding/not applicable/not verifiable | pack drawing or the user's answer |
 | I2C addresses | an I2C bus, else not applicable | confirmed/finding/not applicable/not verifiable | bus, device, 7-bit address |
 | Clock rework footprint | a clock toward memory, a display, a camera, or another hard-to-rework interface | confirmed/finding/not applicable/not verifiable | clock net |

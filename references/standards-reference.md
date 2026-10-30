@@ -1,6 +1,6 @@
 # Standards Reference Guide
 
-This document provides a quick reference to industry standards referenced during EE design review. Use these standards to validate design decisions and identify compliance gaps.
+This is an orientation index, not a source of normative requirements or numeric pass/fail limits. Standards are revised, adopted differently across markets, and may be licensed documents. Before making a compliance finding, identify the target market and product category, verify the applicable edition and amendments using the standards body's official catalog, and cite the exact clause/table from a lawfully available copy or project-controlled compliance record. Do not infer a compliance limit from this summary. Catalog status linked below was checked on 2026-10-30; recheck it for each project review.
 
 ## IPC Standards (PCB Design & Assembly)
 
@@ -8,10 +8,7 @@ This document provides a quick reference to industry standards referenced during
 - **Scope**: Base document for all IPC-222x series, covering rigid, flex, and MCM-L boards.
 - **Key Areas**: Material selection, conductor sizing, hole sizing, electrical clearance.
 - **Review Use**: Verify trace width for current carrying capacity, annular ring requirements, and minimum spacing.
-- **Critical Parameters**:
-  - Minimum conductor spacing (Table 6-1): Based on voltage and elevation.
-  - Conductor width vs. current (Figure 6-1): Cross-reference with temperature rise.
-  - Annular ring: Minimum 0.05mm (B2 class) to 0.10mm (A2 class).
+- **Review use**: Identify applicable clearance, conductor sizing, and hole/ring checks, then verify the design against the licensed edition, its conditions, and the fabrication supplier's capabilities. Do not use a generic spacing or annular-ring number from this guide as an acceptance limit.
 
 ### IPC-2222 - Sectional Standard for Rigid Organic Printed Boards
 - **Scope**: Rigid PCB specific design requirements.
@@ -66,10 +63,12 @@ This document provides a quick reference to industry standards referenced during
 | IEC 61000-4-6 | Conducted immunity | Common-mode chokes, filtering |
 | IEC 61000-4-8 | Magnetic immunity | Layout, shielding for magnetic fields |
 
-### IEC 60950-1 / IEC 62368-1 - Safety of IT/AV Equipment
-- **Scope**: Safety requirements for information technology and audio/video equipment.
-- **Key Areas**: Creepage and clearance distances, insulation, fire enclosure.
-- **Review Use**: Verify safety spacing on primary-secondary boundaries.
+### IEC 62368-1 - Audio/video, information and communication technology equipment
+- **Scope**: Product safety framework for equipment in its stated scope; applicability depends on product and market.
+- **Review Use**: Identify the current adopted edition and applicable safeguards, then cite the controlled clause and evidence. IEC lists [IEC 62368-1:2023, Edition 4.0](https://webstore.iec.ch/en/publication/69308) as valid at the time this guide was updated.
+
+### IEC 60950-1 - Legacy reference
+- IEC lists [IEC 60950-1:2005 as withdrawn on 2024-03-29](https://webstore.iec.ch/en/publication/4020). Do not use it as the default current basis for a new review; retain it only when a specific legacy approval or transition regime makes it relevant, and verify that basis with the project compliance owner.
 
 ### IEC 60601-1 - Medical Electrical Equipment Safety
 - **Scope**: Safety and essential performance for medical electrical equipment.
@@ -91,6 +90,7 @@ This document provides a quick reference to industry standards referenced during
 
 ### CE EMC Directive (EU - 2014/30/EU)
 - **Scope**: Electromagnetic compatibility requirements for EU market.
+- **Official text**: [EUR-Lex consolidated text](https://eur-lex.europa.eu/eli/dir/2014/30/oj/eng).
 - **Key Standards**:
   - EN 55032: Emission limits for multimedia equipment.
   - EN 55035: Immunity requirements for multimedia equipment.
@@ -99,15 +99,13 @@ This document provides a quick reference to industry standards referenced during
 
 ### CE RED Directive (EU - 2014/53/EU)
 - **Scope**: Radio equipment directive for wireless devices.
+- **Official text**: [EUR-Lex text](https://eur-lex.europa.eu/eli/dir/2014/53/oj/eng).
 - **Key Areas**: RF power, frequency band compliance, spectrum access.
 
 ## USB-IF Standards
 - **Scope**: USB interface compliance (USB 2.0, 3.x, USB-C).
 - **Review Use**: Verify USB signal routing, power delivery, connector pinout.
-- **Key Parameters**:
-  - USB 2.0: 90 ohm differential impedance, length matching < 150 mil skew.
-  - USB 3.x: 90 ohm differential, AC coupling, TX/RX length matching.
-  - USB-C: CC1/CC2 pull-down resistors, VBUS power path.
+- **Review use**: Verify interface-specific electrical, routing, connector, and role requirements against the applicable USB-IF specification and device datasheets. Do not treat generic impedance or length-matching values as pass/fail limits; the applicable value depends on the interface, topology, stackup, and specification revision. Use the [USB-IF document library](https://www.usb.org/documents) to identify current specifications.
 
 ## JEDEC Standards (Memory)
 | Standard | Scope | Review Focus |
@@ -119,12 +117,7 @@ This document provides a quick reference to industry standards referenced during
 
 ## AEC-Q100 (Automotive Grade)
 - **Scope**: Stress test qualification for integrated circuits in automotive applications.
-- **Temperature Grades**:
-  - Grade 0: -40C to +150C (extreme)
-  - Grade 1: -40C to +125C (engine compartment)
-  - Grade 2: -40C to +105C (passenger cabin)
-  - Grade 3: -40C to +85C (interior)
-- **Review Use**: Verify all components meet required automotive grade for target application.
+- **Review Use**: Verify the required qualification grade and temperature range from the applicable AEC-Q100 revision and the exact component qualification record. Do not infer a component's suitability from a grade label alone.
 
 ## Quick Reference: When to Apply Which Standard
 
@@ -138,6 +131,6 @@ This document provides a quick reference to industry standards referenced during
 | DDR memory | JEDEC JESD79 | - |
 | ESD protection | IEC 61000-4-2 | - |
 | EMI emission | EN 55032 / FCC Part 15 | - |
-| Safety spacing | IEC 62368-1 / IEC 60950-1 | IPC-2221 |
+| Product safety | Applicable product safety standard for the target market (for example, IEC 62368-1 where in scope) | Applicable insulation coordination / component requirements |
 | Automotive components | AEC-Q100 | - |
 | Boundary scan test | IEEE 1149.1 | - |

@@ -1,5 +1,7 @@
 # EE Review
 
+[简体中文](README.zh-CN.md)
+
 An electronics engineering design-review skill for schematics, PCB layouts, and BOMs. The skill produces an evidence-based HTML report and can produce a review deck when requested.
 
 ## Install for Codex

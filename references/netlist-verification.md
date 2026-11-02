@@ -28,7 +28,7 @@ There are **two** independent text-netlist parser traps, and both were hit in pr
 
 ## Rule 0 — Use the canonical parser, never line-prefix regex
 
-There are **three** source paths; pick the matching parser:
+Choose the parser from the actual file structure, not only the extension:
 
 - **KiCad** (`.kicad_sch` / `.sch` / `.schdoc`): export the netlist as XML first —
   `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch` — then parse
@@ -42,6 +42,13 @@ There are **three** source paths; pick the matching parser:
   lines are indented and hold only `REF.PIN` tokens. Line-prefix scanning silently drops those
   continuation pins and will report a connected pin as "missing".
 
+- **PADS / EasyEDA ASCII netlist** (`.asc` with `*PART*`, `*NET*`, and `*SIGNAL*`): parse with
+  `scripts/parse_pads_ascii_netlist.py` (`PadsAsciiNetlist`). It builds the part inventory and
+  pin/net indexes from section markers and all continuation lines. Run its sanity gate first;
+  duplicate nets, conflicting pin assignments, or pins naming unknown parts invalidate connectivity
+  conclusions until resolved. This format is not a PADS PCB-layout `.asc`; inspect markers before
+  choosing a workflow.
+
 - **Altium** (`.PrjPcb` with child `.SchDoc` files): parse with `altium-monkey` using
   `AltiumDesign.from_prjpcb(...)` followed by `design.compile(force=True)`. Use the compiled
   design's `nets`, `terminals`, and `endpoints`, and record diagnostics. Do not use raw OLE
@@ -50,7 +57,7 @@ There are **three** source paths; pick the matching parser:
   prove flattened cross-sheet connectivity. Critical claims additionally require the diagnostic
   and completeness gate in `references/altium-monkey.md`.
 
-The text-netlist classes expose the same interface — `pin_net`, `net_pins`, `component_pins`,
+The text-netlist classes expose the same lookup interface — `pin_net`, `net_pins`, `component_pins`,
 `is_connected`, `missing_pins`, `verify_by_pinmap` — so that discipline is format-agnostic.
 `altium-monkey` uses compiled `nets` with `terminals`/`endpoints` instead. (`KicadNetlist`
 additionally exposes `lib_pins(ref)` = the device's full pin list, which is the convenient input to
@@ -173,7 +180,11 @@ the parser bug was fixed — only then were they retained.
 
 ## Rule 6 — Unsupported connectivity cannot be Critical
 
-A connectivity claim (connected, unconnected, shorted, swapped, missing from a net, pulled to a rail) is Critical only with a `TelNetlist`, `KicadNetlist`, or successful `altium-monkey` compiled-project lookup quoted in the finding. A schematic PDF, screenshot, raw OLE record dump, SVG geometry, or component-coordinate inference without that lookup is at most `warning`, evidence `PDF-only; connection not proven` or an equivalent unsupported-source note. If the source cannot be compiled or the sheet is unreadable, the row is `not verifiable`. A readable wrong value (setpoint, voltage rating, abs-max) can still be Critical; that is a value claim.
+A connectivity claim (connected, unconnected, shorted, swapped, missing from a net, pulled to a rail) is Critical only with a `TelNetlist`, clean-sanity `PadsAsciiNetlist`, `KicadNetlist`, or successful `altium-monkey` compiled-project lookup quoted in the finding. A schematic PDF, screenshot, raw OLE record dump, SVG geometry, or component-coordinate inference without that lookup is at most `warning`, evidence `PDF-only; connection not proven` or an equivalent unsupported-source note. If the source cannot be compiled or the sheet is unreadable, the row is `not verifiable`. A readable wrong value (setpoint, voltage rating, abs-max) can still be Critical; that is a value claim.
+
+## Rule 7 — Net membership is not proof of valid power or ground
+
+For every IC, use the exact device datasheet pin table (and schematic symbol where available) to inventory all supply and return pins, including analog supplies, backup supplies, exposed pads, and multiple ground pins. Look up each pin's assigned net with the canonical parser. Then trace that net's DC path to its source or return. A ground pin assigned to an unnamed net that only reaches supply rails through decoupling capacitors is electrically floating; parser membership does not make it grounded. Likewise, a supply pin on an isolated net with no source pin is not powered. Only mark pass when both the pin function and the DC path are evidenced. If the pin table or source/return evidence is missing, use `not verifiable`; do not infer pass from nearby capacitors, net presence, or a familiar pin number.
 
 ## Failure modes observed (do not repeat)
 
@@ -188,5 +199,6 @@ A connectivity claim (connected, unconnected, shorted, swapped, missing from a n
 | 7 | Same root cause, `$PACKAGES` mis-split | "C1/C2/C110 shorted", "R414/R415 shorted", "228 parts have no footprint" | `sanity()` → `nets_without_footprint == []` |
 | 8 | Net has far more pins than physically plausible | "ground net misnamed as a VCC rail" | compare pin count against the rail's expected fan-out first |
 | 9 | Strap read as a divider midpoint instead of resolved to a logic level | "address is fine because the divider is 0.3V" | resolve 10k-to-3V3 + 1k-to-GND to a level, then decode AD1/AD0 |
+| 10 | IC ground pin appears on an unnamed net with only capacitive paths to rails | "ground pin is connected because it appears in the netlist" | map the exact pin function from the datasheet, then trace the parser-reported net to a DC return; capacitors do not provide a DC ground path |
 
-**Bottom line:** A connection finding needs a `TelNetlist` or `KicadNetlist` lookup. A PDF or screenshot without that lookup cannot be Critical. A substitute-part finding also needs that part's datasheet, with the section you opened. Anything else is a hypothesis: `warning` with "verify", or drop it.
+**Bottom line:** A connection finding needs a format-matched canonical parser lookup (`TelNetlist`, clean `PadsAsciiNetlist`, `KicadNetlist`, or gated Altium compile). A power/ground finding additionally needs the exact part's pin table and a traced DC source/return. A PDF or screenshot without a parser lookup cannot be Critical. A substitute-part finding also needs that part's datasheet, with the section you opened. Anything else is a hypothesis: `warning` with "verify", or drop it.

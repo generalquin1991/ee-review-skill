@@ -1,6 +1,6 @@
 ---
 name: ee-review
-description: "Electronics engineering design review for schematics (PDF or netlist), PCB layout, and BOMs. Covers power, signal integrity, protection, safety, EMC, thermal, DFM, mandatory BOM SKU standardization, low-power, firmware-hardware co-verification, and sourcing. Checklist rows need a trigger, an evidence file, pass and fail conditions, a severity, and a datasheet citation; missing evidence is not verifiable. Stock and lifecycle require a fetched distributor page or a dated user export (LCSC first, then Digi-Key/Mouser/Arrow/Avnet). Connectivity findings from a PDF cannot be Critical. Writes an HTML report graded S/A/B/C/D, with any Critical finding capping that dimension and the overall grade at C. Triggers: review schematic, check PCB design, audit BOM, hardware design review, EE review, 审核原理图, PCB审核, BOM检查, 硬件设计评审, design review ppt, 评审PPT."
+description: "Use for hardware design file reviews whenever the user asks to review, audit, or check an electronic design. Covers schematics, PCB layouts, netlists, and BOMs, including PADS ASCII .asc files, PADS/TARGET .tel/.net/.dsn netlists, KiCad/Altium sources, and schematic PDFs. Reviews power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Missing evidence stays not verifiable; connectivity claims require parser-backed evidence."
 ---
 
 # EE Review - Electronics Engineering Design Review
@@ -38,10 +38,10 @@ Analyze the provided files to determine the review scope:
 |----------------|-------------------|-------------|
 | Schematic PDF | .pdf (containing circuit diagrams) | Schematic review |
 | Schematic source (KiCad / Altium / others) | .kicad_sch, .sch, .schdoc, .PrjPcb | Schematic review — use the native source parser first. KiCad: export kicadxml and parse it; Altium: use `altium-monkey` on the `.PrjPcb` project when available, or on an individual `.SchDoc` only for sheet-local inspection. |
-| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn | Schematic + PCB review — parse with `scripts/parse_kicad_netlist.py` (KiCad `.xml`) or `scripts/parse_netlist.py` (TARGET `.tel`/`.net`/`.dsn`). |
+| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn, or PADS/EasyEDA `.asc` containing `*PART*`, `*NET*`, `*SIGNAL*` | Schematic/netlist electrical review; no physical PCB review unless layout data is also supplied. Route by file structure and use the format-specific parser. |
 | KiCad PCB | .kicad_pcb | PCB design review (native, no conversion) |
 | Altium PCB | .PcbDoc, .pcbdoc | PCB design review (auto-convert via kicad-cli) |
-| PADS ASCII | .asc | PCB design review (auto-convert via kicad-cli) |
+| PADS ASCII PCB layout | .asc with board/layout sections such as `*ROUTE*` / `*PARTDECAL*` | PCB design review (auto-convert via kicad-cli) |
 | Eagle PCB | .brd | PCB design review (auto-convert via kicad-cli) |
 | Cadstar PCB | .pcb (CADSTAR content) | PCB design review (auto-convert via kicad-cli) |
 | Gerber set | .gbr, .gerber, .gbl, .gtl, etc. | PCB design review (visual/geometric only) |
@@ -49,14 +49,14 @@ Analyze the provided files to determine the review scope:
 | Multiple files | Combination | Combined review (all applicable dimensions) |
 
 To classify input:
-1. Check file extension and content.
+1. Check file content as well as extension. A PADS `.asc` containing `*PART*`, `*NET*`, and `*SIGNAL*` is a pin-level netlist export, not a PCB layout; a layout `.asc` contains board geometry/routing sections.
 2. If PDF, scan for schematic symbols, net labels, component values, or BOM tables.
 3. If ambiguous, ask the user to clarify the file type.
 4. Determine which review dimensions apply based on detected file types.
 
 ### Step 1.5: Layout File Conversion (if needed)
 
-If a PCB layout file is in a non-KiCad format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb), convert it before review:
+If a PCB layout file is in a non-KiCad format (Altium .PcbDoc, PADS layout .asc, Eagle .brd, Cadstar .pcb), convert it before review. Do not send a `*PART*`/`*NET*`/`*SIGNAL*` netlist export through the PCB-layout converter:
 
 **Option A — Automated conversion:**
 ```bash
@@ -132,7 +132,7 @@ Before writing findings, determine whether the design contains a battery,
 antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
 project-specific CERE requirement. Apply every matching conditional checklist.
 Record each checklist row with the six fields in `references/review-contract.md`.
-Regardless of detected features, also record ESD, low-power, EMC, electrical safety,
+Regardless of detected features, also record the IC power/ground-pin audit, ESD, low-power, EMC, electrical safety,
 thermal, DFM/DFT, firmware-hardware co-verification, component availability, and the
 project power baseline. When resistors or capacitors are present, also record the
 E96 resistor check and the capacitor voltage-rating plus DC-bias check. When an
@@ -190,7 +190,7 @@ the review contract: no fetched page and no dated user export means
 `not verifiable`, not a stock number from memory.
 
 A connectivity finding is Critical only with a successful canonical-parser lookup
-quoted in the finding: `TelNetlist`, `KicadNetlist`, or an `altium-monkey`
+quoted in the finding: `TelNetlist`, clean-sanity `PadsAsciiNetlist`, `KicadNetlist`, or an `altium-monkey`
 compiled-project lookup that passes its diagnostic/completeness gate. PDF-only
 or unsupported-source connectivity stays at major.
 
@@ -204,8 +204,10 @@ For each applicable review dimension, systematically evaluate the design:
      - **Altium** (`.PrjPcb` with child `.SchDoc` files): install/use the pinned `altium-monkey` version, load the project with `AltiumDesign.from_prjpcb(...)`, and compile with `design.compile(force=True)`. Use the compiled design's `nets` and each net's `terminals`/`endpoints` for pin→net evidence only after the Altium completeness/diagnostic gate passes. Do not infer cross-sheet connectivity from raw OLE records, `strings`, SVG/PDF geometry, or component coordinates. See `references/altium-monkey.md`.
      - **Altium sheet only** (`.SchDoc` without a project): `AltiumSchDoc` may be used for component/pin/object inspection, but it does not prove project-level cross-sheet connectivity. Keep such claims `not verifiable` unless a native compiled netlist or exported pin-level netlist is supplied.
      - **TARGET / PADS-style** (`.tel` / `.net` / `.dsn` with `$NETS`/`$PACKAGES`): parse with `scripts/parse_netlist.py` (the `TelNetlist` class). This parser is continuation-aware and builds `pin->net` / `net->pins` indexes via reverse lookup.
+     - **PADS / EasyEDA ASCII netlist** (`.asc` with `*PART*`, `*NET*`, and `*SIGNAL*`): parse with `scripts/parse_pads_ascii_netlist.py` (`PadsAsciiNetlist`). Run its `sanity()` gate and resolve every finding with `pin_net`, `net_pins`, or `component_pins`. This is distinct from a PADS PCB-layout `.asc`.
      Long nets span multiple physical lines and a prefix scan will silently drop continuation pins, producing false "pin missing / device unpowered" findings. See `references/netlist-verification.md` for the mandatory verification discipline and real failure-mode examples.
-   - Any claim that a pin is connected, miswired, or **not connected** must be proven by a parser lookup: `TelNetlist`, `KicadNetlist`, or the `altium-monkey` compiled design model after its diagnostic/completeness gate passes. A "device not connected" claim requires a full component/pin lookup or compiled-net terminal search to confirm the pin is absent across the entire design. Quote the exact parser/version, source/project path, net name, reference, pin, compile summary, and diagnostics in the evidence.
+   - Any claim that a pin is connected, miswired, or **not connected** must be proven by a format-specific parser lookup: `TelNetlist`, `PadsAsciiNetlist`, `KicadNetlist`, or the `altium-monkey` compiled design model after its diagnostic/completeness gate passes. A "device not connected" claim requires a full component/pin lookup or compiled-net terminal search to confirm the pin is absent across the entire design. Quote the exact parser/version, source/project path, net name, reference, pin, compile summary, and diagnostics in the evidence.
+   - **Mandatory IC supply/return audit:** for every IC, enumerate every VDD/VCC/VIN/AVDD/IOVDD/VBAT and GND/VSS/AGND pin (including exposed pads) from that exact part's datasheet pin table and the schematic symbol. Trace each pin to its net using the parser, then validate the net's DC destination. A pin appearing in a net is not proof of valid power or ground: a ground pin on an unnamed net connected only through decoupling capacitors to supply rails is floating, not grounded. Pass only when every supply pin reaches its intended powered source/rail and every return pin reaches the intended DC return, with any split-ground exception justified by the datasheet/design. Record every IC in the audit table; missing pinout evidence is `not verifiable`, never an implicit pass. Read `references/schematic-review.md` and `references/netlist-verification.md` for the check.
 2. **Apply checklist items** - Go through each item in the reference checklist for the detected dimension.
 3. **Identify findings** - Record each issue found with:
    - Severity level: `critical`, `major`, `minor`, or `okay`
@@ -374,7 +376,7 @@ A slide needs a location (reference, net, or datasheet row) and a verdict, inclu
 
 Before EMC or safety findings, decide which phenomena apply from the schematic and from the PRD if one was provided. The rule is in `references/conditional-review.md` under EMC and safety applicability. Do not write that choice into the HTML narrative or the PPT. Do review the schematic against it: cable filters on USB and HDMI, power-entry filters, and DNP footprints where a filter is not yet fitted. A TVS alone is not that filter. Findings name the connector, the nets, and whether the filter is populated, DNP, or missing.
 
-KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. Text netlists use `scripts/parse_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Boards that `scripts/convert_layout.py` already supports stay on that path. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
+KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. TARGET `.tel`/`.net`/`.dsn` files use `scripts/parse_netlist.py`; PADS/EasyEDA `*SIGNAL*` ASCII exports use `scripts/parse_pads_ascii_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Boards that `scripts/convert_layout.py` already supports stay on that path. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
 
 Before generating or modifying a review PPT, explicitly ask the user to confirm the cover's `designer` and `reviewer` names. This confirmation is mandatory even when a title block, an existing `deck.json`, or an older deck provides a plausible identity. Present the proposed `project_code`, `designer`, `reviewer`, and `review_date` and wait for confirmation before writing `deck.json` or the PPT. Use the user's exact names, never silently reuse an identity from an older deck, and use today's date as `YYYYMMDD`. When names are already supplied in the current request, treat that as the confirmation and do not ask again.
 
@@ -475,6 +477,7 @@ Always reference `references/standards-reference.md` during review to:
 ### scripts/
 - validate_skill.py - Preflight wrapper for the Codex structural validator. Checks for PyYAML and the local quick_validate.py before running validation, with actionable install guidance when a dependency is missing.
 - `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
+- `parse_pads_ascii_netlist.py` - **MANDATORY parser for PADS/EasyEDA `.asc` netlist exports** with `*PART*` / `*NET*` / `*SIGNAL*` sections. Builds reverse pin/net indexes and reports duplicate nets, conflicting pin assignments, and net references to unknown parts. Run its sanity gate before using pin lookups. Do not use it for PCB-layout `.asc` files.
 - `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
 - `references/altium-monkey.md` - Native Altium `.PrjPcb`/`.SchDoc` parsing, version pinning, completeness/diagnostic gates, and project-level compiled-net evidence using the open-source `altium-monkey` package.
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
@@ -509,7 +512,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 ### references/
 - `schematic-review.md` - Schematic checks as trigger, evidence, pass, fail, severity, and citation.
 - `review-contract.md` - Six-field row, forbidden "checked" filler, canonical-parser connectivity gate, distributor evidence, diagram gate, and the single grade cap.
-- `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Why ad-hoc line-prefix parsing fails (misses continuation lines of long nets), how to use `scripts/parse_netlist.py`, `scripts/parse_kicad_netlist.py`, or `altium-monkey` for reverse-lookup proof, and the failure modes observed on a real review. Read this before asserting any connection-related finding. Unsupported-source connectivity cannot be Critical (Rule 6).
+- `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Defines format routing for TARGET/PADS `.tel`/`.net`/`.dsn`, PADS/EasyEDA `*SIGNAL*` `.asc`, KiCad XML, and Altium; requires parser-backed pin evidence and datasheet-backed supply/return semantics. Read before asserting connection-related findings.
 - `pcb-review.md` - Detailed PCB design review checklist covering 8 dimensions including footprint/land pattern verification, with sub-items, current capacity tables, and routing rules.
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.

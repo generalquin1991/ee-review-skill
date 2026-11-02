@@ -379,6 +379,7 @@ absent:
 
 | Check | Trigger/evidence | Status | Finding or evidence location |
 |---|---|---|---|
+| IC power/ground pin validity | Every IC; exact-part pin table cross-checked against parser-traced nets and DC source/return | confirmed/finding/not verifiable | Per-IC pin audit table; do not treat netlist pin presence as proof of valid power/ground |
 | System block diagram | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
 | Power tree | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
 | ESD and external boundaries | ports reviewed | confirmed/finding/not verifiable | location |

@@ -168,13 +168,20 @@ hold-path release timing during rail collapse; do not assume that BOR forces
 the output low. Include the shutdown sequence and measured waveform when
 datasheet limits alone do not establish margin.
 
-BOM SKU standardization is mandatory for every review. When a BOM is present, apply
-the unique-SKU inventory and passive-component consolidation checks in
-`references/bom-review.md`, including resistors, capacitors, and other repeated
-passives. When no BOM is present, record `BOM SKU standardization` as `not
-verifiable` and name the missing BOM and required fields. Do not silently skip the
-check, and do not turn an optional consolidation suggestion into a schematic
-electrical defect.
+BOM SKU standardization is mandatory for every review. Use a supplied BOM as the
+authority and reconcile it to the design source. If no BOM is supplied but the
+schematic/netlist contains structured part attributes, first reconstruct a
+review-only reference-level BOM and SKU summary using
+`scripts/reconstruct_bom_from_pads_ascii.py` for PADS/EasyEDA `*MISC* ATTRIBUTE VALUES`
+exports, or equivalent structured source data. Clearly label it as
+reconstructed, preserve include/exclude/unspecified assembly status, distinguish
+explicit MPNs from unverified device identifiers, and list missing purchasing
+fields. Continue the SKU, MPN-completeness, and passive-consolidation checks from
+that inventory. Only use `not verifiable` when neither a BOM nor recoverable
+component data exists; stock, lifecycle, and orderability still require their
+separate dated distributor evidence. Do not present a reconstructed inventory as
+an approved procurement BOM or turn optional consolidation into an electrical
+defect. See `references/bom-review.md`.
 
 Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 `confirmed` cites the evidence file. If the evidence is missing, status is
@@ -435,7 +442,7 @@ respectively) and must be confirmed for every design.
 
 ### BOM Review Dimensions
 
-When BOM files are detected, apply these review dimensions (see `references/bom-review.md` for detailed checklists). If no BOM is supplied, record the mandatory BOM SKU Standardization coverage row as `not verifiable` and name the missing BOM fields.
+For every hardware review, apply the BOM review dimensions using the supplied BOM or a clearly labeled reconstructed inventory from structured schematic/netlist attributes. If no BOM and no recoverable component data exist, mark only the affected checks `not verifiable` and name the missing fields; do not skip the BOM coverage rows.
 
 1. **Component Availability & Lifecycle** - Stock, lead time, and lifecycle only from a page fetched in this review or a dated user export. Order when evidence exists: LCSC first, then Digi-Key, Mouser, Arrow, Avnet. No page and no export means `not verifiable`. Do not invent quantities. See `references/bom-review.md` §1 and `references/review-contract.md`.
 2. **Second Source & Alternatives** - Pin-compatible alternatives, parameter-based substitution, standardization.
@@ -477,7 +484,8 @@ Always reference `references/standards-reference.md` during review to:
 ### scripts/
 - validate_skill.py - Preflight wrapper for the Codex structural validator. Checks for PyYAML and the local quick_validate.py before running validation, with actionable install guidance when a dependency is missing.
 - `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
-- `parse_pads_ascii_netlist.py` - **MANDATORY parser for PADS/EasyEDA `.asc` netlist exports** with `*PART*` / `*NET*` / `*SIGNAL*` sections. Builds reverse pin/net indexes and reports duplicate nets, conflicting pin assignments, and net references to unknown parts. Run its sanity gate before using pin lookups. Do not use it for PCB-layout `.asc` files.
+- `parse_pads_ascii_netlist.py` - **MANDATORY parser for PADS/EasyEDA `.asc` netlist exports** with `*PART*` / `*NET*` / `*SIGNAL*` sections. Builds reverse pin/net indexes and reads `*MISC* ATTRIBUTE VALUES` into per-reference attributes. Its sanity gate reports duplicate nets, conflicting pin assignments, unknown part references, and attributes for absent parts. Do not use it for PCB-layout `.asc` files.
+- `reconstruct_bom_from_pads_ascii.py` - Builds a reference-level review-only BOM and SKU summary from PADS/EasyEDA `*PART*`/`*MISC* ATTRIBUTE VALUES` exports. Preserves assembly status and source attributes, treats only `Manufacturer Part` as an explicit MPN, and labels device identifiers as unverified. Usage: `python3 scripts/reconstruct_bom_from_pads_ascii.py <netlist.asc> [--output-dir <dir>]`; existing outputs are not overwritten unless `--overwrite` is specified. Read `references/bom-review.md` before using its output.
 - `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
 - `references/altium-monkey.md` - Native Altium `.PrjPcb`/`.SchDoc` parsing, version pinning, completeness/diagnostic gates, and project-level compiled-net evidence using the open-source `altium-monkey` package.
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.

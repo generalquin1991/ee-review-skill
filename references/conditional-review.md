@@ -343,9 +343,13 @@ component (ICs, key passives, connectors, mechanicals):
   MSL documented for SMT.
 
 Record the page URL or export filename and the quoted status for each flagged
-part. If no BOM or component list is provided, report Component Availability as
-`not applicable`. If a BOM is present and no page or dated export was fetched,
-report it as `not verifiable`. Do not write "in stock" or "Active" from memory.
+part. If a formal BOM is absent but the schematic/netlist contains component
+records or structured attributes, reconstruct a review-only component inventory
+and use it to identify missing MPNs and supplier fields. Do not mark component
+availability `not applicable` merely because the BOM file is absent. Stock,
+orderability, lifecycle, and price remain `not verifiable` until a distributor
+page is fetched or a dated export is supplied. Use `not applicable` only when the
+review evidence shows that no components are in scope.
 
 ## CERE and Project-Specific Power Baseline
 
@@ -379,6 +383,7 @@ absent:
 
 | Check | Trigger/evidence | Status | Finding or evidence location |
 |---|---|---|---|
+| BOM recovery from source | No formal BOM, but component records or structured attributes appear in the schematic/netlist | confirmed/finding/not applicable/not verifiable | Review-only per-reference BOM and SKU-summary CSVs, or missing source path/fields |
 | IC power/ground pin validity | Every IC; exact-part pin table cross-checked against parser-traced nets and DC source/return | confirmed/finding/not verifiable | Per-IC pin audit table; do not treat netlist pin presence as proof of valid power/ground |
 | System block diagram | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
 | Power tree | schematic or netlist present; else not applicable | confirmed/finding/not applicable/not verifiable | `.dot` path, or `no schematic or netlist in this review` |
@@ -394,8 +399,8 @@ absent:
 | Thermal management | high-power/power-dense/enclosure or temp target | confirmed/finding/not applicable/not verifiable | location |
 | DFM/DFT readiness | production design | confirmed/finding/not applicable/not verifiable | location |
 | Firmware-HW co-verification | any HW gated by firmware | confirmed/finding/not applicable/not verifiable | location |
-| Component availability (sourcing) | BOM/component list or N/A evidence | confirmed/finding/not applicable/not verifiable | location / primary source |
-| BOM SKU standardization | every review; BOM required for a completed result | confirmed/finding/not applicable/not verifiable | BOM file, grouped references, and consolidation table |
+| Component availability (sourcing) | BOM or recovered component inventory; stock/lifecycle require fetched source or dated export | confirmed/finding/not applicable/not verifiable | MPN inventory and distributor evidence, or named missing fields |
+| BOM SKU standardization | every review; use formal BOM or reconstruct from structured source attributes before marking not verifiable | confirmed/finding/not applicable/not verifiable | BOM revision or review-only source-derived inventory, grouped references, and consolidation table |
 | CERE/project power baseline | controlled doc or missing | confirmed/finding/not verifiable | location |
 | E96 resistors | resistors on the schematic or BOM | confirmed/finding/not applicable/not verifiable | off-grid references |
 | Schematic value versus ordered part | schematic value and BOM MPN or description both readable | confirmed/finding/not applicable/not verifiable | value or package mismatch |

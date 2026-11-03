@@ -213,10 +213,10 @@ def generate_radar_chart_svg(dimensions, max_size=400):
 def generate_bar_chart_svg(summary, width=350, height=200):
     """Generate a bar chart for finding distribution."""
     critical = summary.get("critical_count", 0)
-    warning = summary.get("warning_count", 0)
-    info = summary.get("info_count", 0)
+    major = summary.get("major_count", summary.get("warning_count", 0))
+    minor = summary.get("minor_count", summary.get("info_count", 0))
 
-    max_val = max(critical, warning, info, 1)
+    max_val = max(critical, major, minor, 1)
     bar_height = 140
     bar_width = 60
     gap = 30
@@ -225,8 +225,8 @@ def generate_bar_chart_svg(summary, width=350, height=200):
     bars = ""
     labels = ""
     values = ""
-    colors = ["#e74c3c", "#f39c12", "#27ae60"]
-    data = [("Critical", critical, colors[0]), ("Warning", warning, colors[1]), ("Info", info, colors[2])]
+    colors = ["#e74c3c", "#f1c40f", "#000000"]
+    data = [("Critical", critical, colors[0]), ("Major", major, colors[1]), ("Minor", minor, colors[2])]
 
     for i, (label, val, color) in enumerate(data):
         x = x_start + i * (bar_width + gap)
@@ -285,8 +285,8 @@ def render_dimension_card(dim):
     findings = dim.get("findings", [])
 
     critical = sum(1 for f in findings if f.get("severity") == "critical")
-    warning = sum(1 for f in findings if f.get("severity") == "warning")
-    info = sum(1 for f in findings if f.get("severity") == "info")
+    major = sum(1 for f in findings if f.get("severity") in {"major", "warning"})
+    minor = sum(1 for f in findings if f.get("severity") in {"minor", "info"})
 
     findings_html = "".join(render_finding(f, i) for i, f in enumerate(findings))
 
@@ -312,12 +312,12 @@ def render_dimension_card(dim):
                 <span class="stat-label">Critical</span>
             </div>
             <div class="stat-item">
-                <span class="stat-value" style="color: #f39c12;">{warning}</span>
-                <span class="stat-label">Warnings</span>
+                <span class="stat-value" style="color: #f1c40f;">{major}</span>
+                <span class="stat-label">Major</span>
             </div>
             <div class="stat-item">
-                <span class="stat-value" style="color: #27ae60;">{info}</span>
-                <span class="stat-label">Info</span>
+                <span class="stat-value" style="color: #000000;">{minor}</span>
+                <span class="stat-label">Minor</span>
             </div>
         </div>
         <div class="findings-list">
@@ -692,8 +692,8 @@ def generate_html_report(data):
     # Summary stats
     total = summary.get("total_findings", 0)
     critical = summary.get("critical_count", 0)
-    warning = summary.get("warning_count", 0)
-    info = summary.get("info_count", 0)
+    major = summary.get("major_count", summary.get("warning_count", 0))
+    minor = summary.get("minor_count", summary.get("info_count", 0))
 
     html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1003,12 +1003,12 @@ def generate_html_report(data):
                 <div class="lbl">Critical Issues</div>
             </div>
             <div class="stat-box">
-                <div class="num" style="color: #f39c12;">{warning}</div>
-                <div class="lbl">Warnings</div>
+                <div class="num" style="color: #f1c40f;">{major}</div>
+                <div class="lbl">Major Issues</div>
             </div>
             <div class="stat-box">
-                <div class="num" style="color: #27ae60;">{info}</div>
-                <div class="lbl">Info / Suggestions</div>
+                <div class="num" style="color: #000000;">{minor}</div>
+                <div class="lbl">Minor Issues</div>
             </div>
         </div>
 

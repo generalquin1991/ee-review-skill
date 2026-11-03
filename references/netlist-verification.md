@@ -46,7 +46,9 @@ Choose the parser from the actual file structure, not only the extension:
   `scripts/parse_pads_ascii_netlist.py` (`PadsAsciiNetlist`). It builds the part inventory and
   pin/net indexes from section markers and all continuation lines. Run its sanity gate first;
   duplicate nets, conflicting pin assignments, or pins naming unknown parts invalidate connectivity
-  conclusions until resolved. This format is not a PADS PCB-layout `.asc`; inspect markers before
+  conclusions until resolved. It also extracts per-reference `*MISC* ATTRIBUTE VALUES` for
+  review-only BOM recovery; use `scripts/reconstruct_bom_from_pads_ascii.py` rather than a
+  one-off text extraction. This format is not a PADS PCB-layout `.asc`; inspect markers before
   choosing a workflow.
 
 - **Altium** (`.PrjPcb` with child `.SchDoc` files): parse with `altium-monkey` using

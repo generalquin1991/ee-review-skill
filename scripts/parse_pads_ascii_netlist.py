@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse PADS/EasyEDA ASCII netlist exports with *PART*/*SIGNAL* sections."""
+"""Parse PADS/EasyEDA ASCII nets and component attributes from structured sections."""
 
 import argparse
 import re
@@ -16,6 +16,7 @@ class PadsAsciiNetlist:
 
     def __init__(self):
         self.parts = {}
+        self.attributes = defaultdict(dict)
         self.net_to_pins = defaultdict(set)
         self.pin_to_net = {}
         self.duplicate_nets = []
@@ -37,6 +38,8 @@ class PadsAsciiNetlist:
         nl = cls()
         section = None
         current_net = None
+        current_attr_ref = None
+        reading_attributes = False
 
         for line_no, raw in enumerate(text.splitlines(), 1):
             line = raw.strip()
@@ -57,7 +60,7 @@ class PadsAsciiNetlist:
                     section = "NET"
                 else:
                     current_net = None
-                    section = {"PART": "PART", "NET": "NET", "MISC": "END", "END": "END"}.get(tag, "OTHER")
+                    section = {"PART": "PART", "NET": "NET", "MISC": "MISC", "END": "END"}.get(tag, "OTHER")
                 continue
 
             if section == "PART":
@@ -84,6 +87,24 @@ class PadsAsciiNetlist:
                     nl.pin_to_net[qualified] = current_net
                     if ref not in nl.parts:
                         nl.unknown_refs.add(ref)
+            elif section == "MISC":
+                if line == "ATTRIBUTE VALUES":
+                    reading_attributes = True
+                    current_attr_ref = None
+                    continue
+                if not reading_attributes:
+                    continue
+                part_match = re.fullmatch(r"PART\s+(\S+)", line)
+                if part_match:
+                    current_attr_ref = part_match.group(1)
+                    nl.attributes[current_attr_ref]
+                    continue
+                if line == "}":
+                    current_attr_ref = None
+                    continue
+                if current_attr_ref and line.startswith('"'):
+                    key, value = _parse_attribute(line, line_no)
+                    nl.attributes[current_attr_ref][key] = value
 
         if not nl.parts:
             raise ValueError("No *PART* component records found")
@@ -115,6 +136,7 @@ class PadsAsciiNetlist:
             "duplicate_nets": sorted(set(self.duplicate_nets)),
             "pin_conflicts": {k: sorted(set(v)) for k, v in self.pin_conflicts.items()},
             "unknown_refs": sorted(self.unknown_refs),
+            "attributes_without_part": sorted(set(self.attributes) - set(self.parts)),
         }
 
 
@@ -124,6 +146,7 @@ def main():
     parser.add_argument("--comp", help="show a component's connected pins")
     parser.add_argument("--net", help="show all pins on a net")
     parser.add_argument("--pins", help="comma-separated REF.PIN lookups")
+    parser.add_argument("--attrs", help="show all exported attributes for a reference")
     args = parser.parse_args()
 
     try:
@@ -132,14 +155,16 @@ def main():
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    print("sanity:", nl.sanity())
     sanity = nl.sanity()
-    if sanity["duplicate_nets"] or sanity["pin_conflicts"] or sanity["unknown_refs"]:
+    print("sanity:", sanity)
+    if any(sanity[key] for key in ("duplicate_nets", "pin_conflicts", "unknown_refs", "attributes_without_part")):
         print("ERROR: parser sanity gate failed; do not use connectivity lookups", file=sys.stderr)
         return 3
     if args.comp:
         print(f"{args.comp} footprint: {nl.parts.get(args.comp)}")
         print(f"{args.comp} pins: {nl.component_pins(args.comp)}")
+    if args.attrs:
+        print(f"{args.attrs} attributes: {nl.attributes.get(args.attrs, {})}")
     if args.net:
         print(f"{args.net}: {sorted(nl.net_pins(args.net))}")
     if args.pins:
@@ -147,6 +172,27 @@ def main():
             ref, sep, pin = item.partition(".")
             print(f"{item}: {nl.pin_net(ref, pin) if sep else 'INVALID; expected REF.PIN'}")
     return 0
+
+
+def _parse_attribute(line, line_no):
+    escaped = False
+    closing = None
+    for index in range(1, len(line)):
+        char = line[index]
+        if char == '"' and not escaped:
+            closing = index
+            break
+        if char == "\\" and not escaped:
+            escaped = True
+        else:
+            escaped = False
+    if closing is None:
+        raise ValueError(f"Line {line_no}: unterminated attribute name")
+    key = line[1:closing]
+    value = line[closing + 1:].strip()
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        value = value[1:-1]
+    return key, value
 
 
 if __name__ == "__main__":

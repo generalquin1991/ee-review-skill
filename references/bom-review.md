@@ -50,14 +50,45 @@ Section 1 is the verdict for second source, lifecycle, and MPN suffix. Do not ra
 
 ### 2.4 Unique SKU Inventory and Passive Standardization (mandatory)
 
-Run this check for every review that includes a BOM. If no BOM is supplied, record
-the coverage row as `not verifiable` and name the missing file and required fields.
-This is a BOM/DFM optimization result, not automatically a schematic defect.
+Run this check for every hardware review, not only when a separately named BOM
+file is attached. A supplied, controlled BOM is authoritative and must be
+reconciled to the schematic/netlist. If no BOM is supplied but the design source
+contains component records or structured part attributes, reconstruct a
+reference-level review inventory first. For PADS/EasyEDA ASCII exports containing
+`*PART*` and `*MISC* ATTRIBUTE VALUES`, use
+`scripts/reconstruct_bom_from_pads_ascii.py`; do not hand-extract selected fields
+and do not stop at “BOM missing.” Keep every reference, quantity per board,
+`Add into BOM` status (`include`, `exclude`, or `unspecified`), source attributes,
+explicit MPN, manufacturer, supplier, value, package, and datasheet field that is
+available. The generated inventory is for review only, not an approved purchasing
+BOM.
+
+Only a populated `Manufacturer Part`/MPN field counts as an explicit MPN. A
+`Device`, `Symbol`, or `Name` value can be shown as an unverified identifier for
+follow-up, but must not be silently promoted to an orderable MPN. Do not infer a
+ref-specific exception. Keep excluded/DNP lines in the reference-level inventory
+but omit them from included quantity totals; list unspecified assembly status for
+resolution. Group confirmed purchase SKUs by exact MPN and manufacturer. Group
+incomplete lines only as clearly labeled value/package proxies, never as verified
+SKUs. Preserve the source attributes so the user can audit each recovered field.
+
+When structured component data is recoverable, an included part without an
+explicit, verified MPN is a procurement warning; missing manufacturer/ratings
+are BOM completeness findings. Continue SKU and passive-standardization checks
+with known fields and explicitly mark only unavailable subchecks as `not
+verifiable`. Missing a formal, controlled BOM remains a procurement-readiness
+warning, but does not erase what can be learned from the netlist. Stock,
+orderability, price, and lifecycle are separate checks and still require the
+dated distributor evidence in section 1. If neither BOM nor component-level
+source data exists, then record affected coverage as `not verifiable` and name
+the missing file/fields. BOM/DFM optimization findings are not automatically
+schematic electrical defects.
 
 | Check | Trigger | Evidence | Pass | Fail | Severity | Citation |
 |---|---|---|---|---|---|---|
-| Unique SKU inventory | Any BOM with resistors, capacitors, inductors, ferrites, diodes, or other repeated passives | Complete BOM with reference designators, MPN, manufacturer, value, tolerance, voltage/current rating, dielectric, package, and quantity | Every unique MPN and every electrical/package grouping is counted, with references and quantities | BOM is present but the fields needed to group or count parts are missing | not verifiable; warning only when a stated release or standardization requirement cannot be met | BOM file and its revision |
-| Passive SKU consolidation | Two or more passive SKUs have compatible electrical and mechanical requirements | Schematic/netlist function, BOM fields, relevant part datasheets, and DC-bias/derating data for capacitors | Candidate substitutes preserve value, tolerance, rating, dielectric, package, power, temperature, ESR/ripple, and function; affected references and expected SKU reduction are listed | A proposed merge violates one of those constraints, or the recommendation lacks enough evidence to verify equivalence | warning when a required standardization target is missed; otherwise optimization recommendation, not a defect | Part datasheets and schematic/netlist |
+| Source-to-BOM recovery | No formal BOM; structured netlist/schematic part records or attributes exist | Source file plus generated per-reference inventory and SKU summary | All source references are represented, assembly status and source fields are preserved, and explicit MPNs are separated from unverified identifiers | Recoverable source fields are ignored, references are dropped, or a reconstructed list is presented as an approved procurement BOM | warning for skipped recovery or false procurement authority; unavailable fields remain not verifiable | Source file and generated review-only CSVs |
+| Unique SKU inventory | Every BOM or recoverable component inventory with repeated parts | Reference list plus explicit MPN, manufacturer, value, tolerance, voltage/current rating, dielectric, package, and quantity where available | Every unique explicit MPN group and every incomplete placeholder grouping is counted separately, with references and quantities; orderability is verified separately | Available fields are not counted, or placeholders are silently represented as purchase SKUs | warning for missing release-required inventory; missing source fields are not verifiable | BOM revision or source file and reconstructed inventory |
+| Passive SKU consolidation | Two or more passive SKUs have compatible electrical and mechanical requirements | Schematic/netlist function, available BOM/source fields, relevant part datasheets, and DC-bias/derating data for capacitors | Candidate substitutes preserve value, tolerance, rating, dielectric, package, power, temperature, ESR/ripple, and function; affected references and expected SKU reduction are listed | A proposed merge violates one of those constraints, or the recommendation lacks enough evidence to verify equivalence | warning when a required standardization target is missed; otherwise optimization recommendation, not a defect | Part datasheets and schematic/netlist |
 
 For resistors, compare resistance, tolerance, power, working voltage, temperature
 coefficient, package, and pulse requirements. For capacitors, compare capacitance,

@@ -112,6 +112,22 @@ def remove_pic(xml, name):
     return xml[:start] + xml[end:]
 
 
+def remove_body_numbering(xml):
+    marker = 'name="Body"'
+    index = xml.find(marker)
+    if index < 0:
+        raise SystemExit("template shape Body is missing")
+    start = xml.rfind("<p:sp", 0, index)
+    end = xml.find("</p:sp>", index) + len("</p:sp>")
+    block = xml[start:end]
+    paragraph = re.search(r"<a:p(?:\s[^>]*)?>", block)
+    if not paragraph:
+        raise SystemExit("template shape Body has no paragraph")
+    insertion = paragraph.end()
+    block = block[:insertion] + "<a:pPr><a:buNone/></a:pPr>" + block[insertion:]
+    return xml[:start] + block + xml[end:]
+
+
 def pic_embed(xml, name):
     marker = f'name="{name}"'
     index = xml.find(marker)
@@ -274,6 +290,7 @@ def fill_finding(files, slide_xml_name, rels_name, finding, index):
     xml = set_shape_text(xml, "Subtitle", finding["subtitle"])
     xml = set_subtitle_color(xml, finding["severity"])
     xml = set_shape_text(xml, "Body", finding["body"])
+    xml = remove_body_numbering(xml)
     images = list(finding.get("images") or [])
     if finding.get("image"):
         images.append(finding["image"])

@@ -22,6 +22,10 @@ Use only `confirmed`, `finding`, `not applicable`, or `not verifiable`.
 
 Forbidden as a status, a finding title, or the whole evidence cell: "checked", "reviewed", "verified", "looks fine", "已检查", "已确认". A dimension with no proven fail and no proven pass is `not verifiable`, not a passing grade filler.
 
+## PCB layout is out of scope
+
+Do not review PCB layout geometry. Stackup, impedance, return path, copper width versus current, decoupling distance, routing quality, solder mask, paste, vias, courtyards, silk, and Gerber visual checks are out of scope. A `.kicad_pcb`, Gerber set, `.PcbDoc`, layout `.asc`, `.brd`, or similar board file does not open a layout dimension. Tell the user layout review is out of scope, then continue with schematic, netlist, and BOM work when those inputs exist. Symbol-to-datasheet pin mapping stays in `references/schematic-review.md`.
+
 ## Datasheets on disk
 
 Before a row that depends on a datasheet, save that PDF under `<project>/ee-review/datasheets/`. Name the file from the manufacturer part number. If the user already supplied the PDF, copy it there and cite that copy. A browser page that was not saved is not the citation. If the PDF cannot be saved, the row is `not verifiable` and names the missing path. Stock and lifecycle stay on the distributor rule below; a datasheet PDF is not a stock quote.

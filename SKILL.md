@@ -1,13 +1,15 @@
 ---
 name: ee-review
-description: "Use for hardware design file reviews whenever the user asks to review, audit, or check an electronic design. Covers schematics, PCB layouts, netlists, and BOMs, including PADS ASCII .asc files, PADS/TARGET .tel/.net/.dsn netlists, KiCad/Altium sources, and schematic PDFs. Reviews power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Missing evidence stays not verifiable; connectivity claims require parser-backed evidence."
+description: "Use for hardware design file reviews whenever the user asks to review, audit, or check an electronic design. Covers schematics, netlists, and BOMs, including PADS ASCII .asc netlist exports, PADS/TARGET .tel/.net/.dsn netlists, KiCad/Altium sources, and schematic PDFs. Does not review PCB layout, Gerbers, or board geometry. Reviews power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Missing evidence stays not verifiable; connectivity claims require parser-backed evidence."
 ---
 
 # EE Review - Electronics Engineering Design Review
 
 ## Overview
 
-Perform comprehensive, professional, and in-depth review of hardware design artifacts including schematics (PDF or netlist), PCB layout files, and BOM documents. Produce a structured HTML report with hierarchical review dimensions, S/A/B/C/D grading, risk-level marking, and actionable recommendations.
+Perform comprehensive, professional, and in-depth review of hardware design artifacts including schematics (PDF or netlist) and BOM documents. Produce a structured HTML report with hierarchical review dimensions, S/A/B/C/D grading, risk-level marking, and actionable recommendations.
+
+PCB layout review is out of scope. Do not review `.kicad_pcb`, Gerber sets, or other board geometry files for stackup, routing, impedance, return path, copper current, mask, paste, or placement. If the user asks for a layout review, say so and continue with schematic/netlist/BOM work when those files are present.
 
 ## Skill Validation Preflight
 
@@ -23,10 +25,11 @@ PyYAML is required for skill structure validation only. Normal EE design reviews
 
 Activate this skill when the user requests any of the following:
 - Schematic review (原理图审核) - PDF schematics, netlist files, design files
-- PCB design review (PCB审核) - Gerber files, layout files, design rule output
 - BOM audit (BOM审核) - Bill of materials in CSV/XLSX/PDF format
-- Full hardware design review (硬件设计评审) - combination of above
-- Keywords: "review", "audit", "check", "审核", "评审", "检查" combined with "schematic", "PCB", "BOM", "原理图", "电路板", "物料清单"
+- Full hardware design review (硬件设计评审) of schematic/netlist/BOM scope
+- Keywords: "review", "audit", "check", "审核", "评审", "检查" combined with "schematic", "BOM", "原理图", "物料清单", "网表"
+
+Do not activate a PCB layout review path for Gerber, `.kicad_pcb`, or other board files. Those inputs are out of scope; tell the user and keep the review on schematic/netlist/BOM evidence.
 
 ## Review Workflow
 
@@ -38,52 +41,21 @@ Analyze the provided files to determine the review scope:
 |----------------|-------------------|-------------|
 | Schematic PDF | .pdf (containing circuit diagrams) | Schematic review |
 | Schematic source (KiCad / Altium / others) | .kicad_sch, .sch, .schdoc, .PrjPcb | Schematic review — use the native source parser first. KiCad: export kicadxml and parse it; Altium: use `altium-monkey` on the `.PrjPcb` project when available, or on an individual `.SchDoc` only for sheet-local inspection. |
-| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn, or PADS/EasyEDA `.asc` containing `*PART*`, `*NET*`, `*SIGNAL*` | Schematic/netlist electrical review; no physical PCB review unless layout data is also supplied. Route by file structure and use the format-specific parser. |
-| KiCad PCB | .kicad_pcb | PCB design review (native, no conversion) |
-| Altium PCB | .PcbDoc, .pcbdoc | PCB design review (auto-convert via kicad-cli) |
-| PADS ASCII PCB layout | .asc with board/layout sections such as `*ROUTE*` / `*PARTDECAL*` | PCB design review (auto-convert via kicad-cli) |
-| Eagle PCB | .brd | PCB design review (auto-convert via kicad-cli) |
-| Cadstar PCB | .pcb (CADSTAR content) | PCB design review (auto-convert via kicad-cli) |
-| Gerber set | .gbr, .gerber, .gbl, .gtl, etc. | PCB design review (visual/geometric only) |
+| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn, or PADS/EasyEDA `.asc` containing `*PART*`, `*NET*`, `*SIGNAL*` | Schematic/netlist electrical review. Route by file structure and use the format-specific parser. |
+| KiCad / Altium / PADS / Eagle / Cadstar PCB layout | .kicad_pcb, .PcbDoc, layout `.asc` with `*ROUTE*` / `*PARTDECAL*`, .brd, Cadstar .pcb | Out of scope. Do not convert or review for layout findings. |
+| Gerber set | .gbr, .gerber, .gbl, .gtl, etc. | Out of scope. Do not review board geometry. |
 | BOM | .csv, .xlsx, .xls, .pdf (containing BOM table) | BOM review |
-| Multiple files | Combination | Combined review (all applicable dimensions) |
+| Multiple files | Combination | Combined schematic/netlist/BOM review only; ignore layout files for findings |
 
 To classify input:
-1. Check file content as well as extension. A PADS `.asc` containing `*PART*`, `*NET*`, and `*SIGNAL*` is a pin-level netlist export, not a PCB layout; a layout `.asc` contains board geometry/routing sections.
+1. Check file content as well as extension. A PADS `.asc` containing `*PART*`, `*NET*`, and `*SIGNAL*` is a pin-level netlist export, not a PCB layout; a layout `.asc` contains board geometry/routing sections and is out of scope for this skill.
 2. If PDF, scan for schematic symbols, net labels, component values, or BOM tables.
 3. If ambiguous, ask the user to clarify the file type.
-4. Determine which review dimensions apply based on detected file types.
+4. Determine which schematic/netlist/BOM dimensions apply. Do not open a PCB layout dimension.
 
-### Step 1.5: Layout File Conversion (if needed)
+### Step 1.5: PCB layout files (out of scope)
 
-If a PCB layout file is in a non-KiCad format (Altium .PcbDoc, PADS layout .asc, Eagle .brd, Cadstar .pcb), convert it before review. Do not send a `*PART*`/`*NET*`/`*SIGNAL*` netlist export through the PCB-layout converter:
-
-**Option A — Automated conversion:**
-```bash
-python3 scripts/convert_layout.py <input_file> --output-dir ./converted_output --export-all
-```
-This script auto-detects the format and uses `kicad-cli pcb import` for board files or `kicad-cli sch import` for supported schematic files. PCB inputs can then export Gerber, drill, pick-place, and IPC-D-356 netlist files.
-
-**Prerequisites:**
-- KiCad 8+ or 10.0+ must be installed (provides `kicad-cli`)
-- macOS: `brew install --cask kicad`
-- Ubuntu: `sudo apt install kicad`
-- Windows: Download from [kicad.org](https://www.kicad.org/download/)
-
-**Option B — Manual Gerber export:**
-If kicad-cli is not available or conversion fails, ask the user to export manufacturing files from their EDA tool. Refer to `references/file-preparation-guide.md` for tool-specific export instructions (Altium Designer, PADS, Eagle, Cadstar, OrCAD/Allegro).
-
-**Special note for PADS users:** PADS binary `.pcb` files cannot be directly converted. The user must export to ASCII `.asc` format first: `File -> Export -> ASCII` (select all sections). This is the only manual step required.
-
-For boards where the KiCad importer drops PADS routing or board graphics, run the full converter after the initial import:
-
-```bash
-python3 scripts/pads_full_converter.py board.asc imported.kicad_pcb reviewed.kicad_pcb
-```
-
-Both PADS converters fit coordinates against matching reference designators and stop when the maximum fit error exceeds `0.01 mm`. If the source/import alignment has been independently verified, the limit can be changed explicitly with `--max-transform-error <mm>`; record that decision in the review notes.
-
-After conversion, use the `.kicad_pcb` and exported files for the review in subsequent steps.
+If the user supplies only a board layout or Gerber set, say that PCB layout review is out of scope and ask for a schematic, netlist, or BOM if they want an electrical or procurement review. Do not run `convert_layout.py` or invent stackup/routing findings to fill the report. Layout conversion scripts may remain in the repo for other uses; they are not part of this review workflow.
 
 ### Step 1.8: Architecture diagrams
 
@@ -118,7 +90,7 @@ Based on detected review scope, load the appropriate reference documents:
 - **Review contract**: Read `references/review-contract.md` for every review. It defines the six-field checklist row, the `not verifiable` rule, the canonical-parser connectivity gate, distributor evidence, when diagrams are required, and the single grade cap.
 - **Schematic review**: Read `references/schematic-review.md` and `references/netlist-verification.md` (the latter is mandatory whenever the input includes a netlist — it governs how connection claims must be proven)
 - **Altium source review**: Read `references/altium-monkey.md` whenever `.PrjPcb` or `.SchDoc` files are present. It defines the project-level compile path and the evidence required for source connectivity claims.
-- **PCB review**: Read `references/pcb-review.md`
+- **PCB layout (out of scope)**: Read `references/pcb-review.md` only to confirm layout review is refused. Do not apply layout checklists.
 - **BOM review**: Read `references/bom-review.md`
 - **Standards reference**: Read `references/standards-reference.md` (always load for cross-referencing)
 - **Architecture diagrams**: Read `references/architecture-diagrams.md` when Step 1.8 applies.
@@ -149,7 +121,7 @@ the cell connector has no protection IC on this board, ask whether the pack has
 a protection board and a PTC before treating the cell as protected. Each I2C
 bus gets an address list. Clocks toward memory, a display, a camera, or another
 hard-to-rework interface get the rework-footprint check, and a net whose
-datasheet shows source or end termination gets that check. When a footprint is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/pcb-review.md`. That check is one slide listing every part whose pin table was opened. A substitute for a
+datasheet shows source or end termination gets that check. When a footprint or symbol pin map is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/schematic-review.md`. That check is one slide listing every part whose pin table was opened. It is not a PCB layout review. A substitute for a
 key part stays out of the report until the user confirms that exact part.
 
 When an MCU/SoC maintains a power latch or shutdown depends on its GPIO, record
@@ -383,7 +355,7 @@ A slide needs a location (reference, net, or datasheet row) and a verdict, inclu
 
 Before EMC or safety findings, decide which phenomena apply from the schematic and from the PRD if one was provided. The rule is in `references/conditional-review.md` under EMC and safety applicability. Do not write that choice into the HTML narrative or the PPT. Do review the schematic against it: cable filters on USB and HDMI, power-entry filters, and DNP footprints where a filter is not yet fitted. A TVS alone is not that filter. Findings name the connector, the nets, and whether the filter is populated, DNP, or missing.
 
-KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. TARGET `.tel`/`.net`/`.dsn` files use `scripts/parse_netlist.py`; PADS/EasyEDA `*SIGNAL*` ASCII exports use `scripts/parse_pads_ascii_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Boards that `scripts/convert_layout.py` already supports stay on that path. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
+KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. TARGET `.tel`/`.net`/`.dsn` files use `scripts/parse_netlist.py`; PADS/EasyEDA `*SIGNAL*` ASCII exports use `scripts/parse_pads_ascii_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Do not convert or review PCB layout files as part of this skill. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
 
 Before generating or modifying a review PPT, explicitly ask the user to confirm the cover's `designer` and `reviewer` names. This confirmation is mandatory even when a title block, an existing `deck.json`, or an older deck provides a plausible identity. Present the proposed `project_code`, `designer`, `reviewer`, and `review_date` and wait for confirmation before writing `deck.json` or the PPT. Use the user's exact names, never silently reuse an identity from an older deck, and use today's date as `YYYYMMDD`. When names are already supplied in the current request, treat that as the confirmation and do not ask again.
 
@@ -412,33 +384,9 @@ Supply Design must include peak/inrush transient stability. For projects naming
 CERE or another internal baseline, map the measured design against that
 controlled requirement and mark missing evidence explicitly.
 
-### PCB Design Review Dimensions
+### PCB Layout Review Dimensions
 
-When PCB layout files are detected, apply these review dimensions (see `references/pcb-review.md` for detailed checklists):
-
-1. **Layer Stackup** - Layer count, material/thickness, reference plane assignment.
-2. **Signal Integrity** - Impedance control, length matching, crosstalk, return path.
-3. **Power Integrity** - Power distribution, decoupling placement, current capacity.
-4. **Thermal Management** - Component placement, copper pour, airflow.
-5. **EMC/EMI Design** - Layout partitioning, filtering/shielding, clock routing, grounding.
-6. **Footprint & Land Pattern Verification** - Footprint accuracy, IPC-7351 pad design, courtyard spacing, orientation marking, footprint-to-BOM cross-check. Includes solder mask opening verification (NSMD/SMD, via tenting, mask slivers), solder paste aperture verification (paste reduction for fine-pitch, thermal pad patterns, per-pad overrides), and PADS-to-KiCad conversion data loss detection.
-7. **DFM/DFT** - Manufacturing rules, testability, assembly considerations.
-8. **Routing Quality** - General routing, via design, net-specific routing rules.
-
-For antenna/RF designs, Signal Integrity and EMC/EMI must include the 50-ohm
-path, matching network, RF keepout, ground stitching, and tuning evidence. For
-USB-C designs, verify both CC pins and role resistors from the netlist and
-controller datasheet; do not accept a single generic "USB connector checked"
-statement. For battery/portable/always-on designs, Power Integrity and EMC/EMI
-must also include low-power implementation: power-gated domain isolation in
-layout (no sneak return through a shared ground/pour), minimal always-on copper,
-and leakage/light-load behavior of the always-on rail. Cross-reference the
-schematic §6 Low-Power Design findings. EMC/EMI is a mandatory coverage check
-for every design (radiated/conducted emissions, immunity, filtering, grounding,
-clock/DC-DC noise); it must be confirmed even when no explicit EMC target is
-named, not treated as optional. Likewise, Thermal Management and DFM/DFT are
-mandatory coverage checks (power-dense/enclosure heat and production readiness,
-respectively) and must be confirmed for every design.
+Out of scope. Do not create PCB layout findings, grades, or slides from board files. See `references/pcb-review.md` and `references/review-contract.md`. Schematic EMC/thermal/DFM coverage still uses schematic and datasheet evidence only; do not invent layout measurements to close those rows.
 
 ### BOM Review Dimensions
 
@@ -491,7 +439,7 @@ Always reference `references/standards-reference.md` during review to:
 - `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
 - `generate_pptx.py` - **The only command that writes a review PPT.** Reads `ee-review/deck.json` and fills `assets/review-slide-template.pptx` by replacing existing text runs. Usage: `python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx`. See `references/ppt-style.md`.
 - `crop_schematic.py` - **The only command that crops a KiCad symbol or draws a red box/arrow on a review figure.** Usage: `python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png`. An existing PNG uses `--image` and optional `--box` / `--mark`.
-- `convert_layout.py` - Auto-detects PCB layout file format (Altium .PcbDoc, PADS .asc, Eagle .brd, Cadstar .pcb, KiCad .kicad_pcb) and converts to KiCad format using kicad-cli. Optionally exports Gerber, drill, pick-place, and netlist files. Includes post-conversion audit that checks for routing trace loss, solder mask/paste settings, via tenting, silk screen completeness, board outline, and copper zones. Requires KiCad 8+ installed.
+- `convert_layout.py` - Legacy PCB layout conversion helper. Not part of the review workflow; this skill does not review PCB layout.
 - `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.
 - `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions, then enforces the fit-error threshold. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
 - `pads_full_converter.py` - Comprehensive PADS→KiCad converter that extends route injection with: (1) board outline injection from PADS BOARD items → Edge.Cuts, (2) silk screen text from *TEXT* → F.SilkS, (3) documentation lines from *LINES* → F.Fab, (4) copper zone creation on B.Cu using board outline + thermal connection analysis, (5) per-pad solder_paste_margin and solder_mask_margin injection from PARTDECAL pad stacks. Parses PARTDECAL pad stack levels (-2=paste, -1=mask, 0=copper) and computes margins using PADS ARPTOM global annular ring. Usage: `python3 pads_full_converter.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
@@ -521,7 +469,7 @@ When converting PADS ASCII files via kicad-cli, the following data is NOT conver
 - `schematic-review.md` - Schematic checks as trigger, evidence, pass, fail, severity, and citation.
 - `review-contract.md` - Six-field row, forbidden "checked" filler, canonical-parser connectivity gate, distributor evidence, diagram gate, and the single grade cap.
 - `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Defines format routing for TARGET/PADS `.tel`/`.net`/`.dsn`, PADS/EasyEDA `*SIGNAL*` `.asc`, KiCad XML, and Altium; requires parser-backed pin evidence and datasheet-backed supply/return semantics. Read before asserting connection-related findings.
-- `pcb-review.md` - Detailed PCB design review checklist covering 8 dimensions including footprint/land pattern verification, with sub-items, current capacity tables, and routing rules.
+- `pcb-review.md` - States that PCB layout review is out of scope. Do not treat it as an active layout checklist.
 - `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
 - `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
 - `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
@@ -534,24 +482,15 @@ No assets required. The HTML report is generated dynamically by the script.
 
 ## Example Usage
 
-**Example 1: Review Altium .PcbDoc + BOM**
+**Example 1: Layout-only request**
 
-**User input**: "Review this Altium PCB and BOM file"
-**Detected files**: `board.PcbDoc`, `bom.csv`
-**Review scope**: PCB + BOM (combined)
+**User input**: "Review this KiCad PCB"
+**Detected files**: `board.kicad_pcb`
 **Workflow**:
-1. Classify files - .PcbDoc = Altium PCB, CSV = BOM
-2. Convert PCB: `python3 scripts/convert_layout.py board.PcbDoc --output-dir ./output --export-all`
-   - Output: `output/board.kicad_pcb`, `output/gerber/`, `output/drill/`, `output/netlist.net`
-3. Load `references/pcb-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, and `references/review-contract.md`. Load `references/architecture-diagrams.md` only if a schematic or netlist is also present.
-4. Parse converted .kicad_pcb - extract layer stackup, tracks, vias, component footprints, copper zones
-5. Parse BOM CSV - extract part numbers, quantities, descriptions
-6. Apply PCB checklist (8 dimensions including footprint verification)
-7. Apply BOM checklist (6 dimensions including package verification)
-8. Cross-reference findings with standards
-9. Score each dimension from 100, then apply the Step 4 cap. One Critical caps that dimension and the overall letter at C.
-10. Assemble JSON, run `generate_report.py`. The script enforces the same cap.
-11. Present HTML report to user
+1. Classify `.kicad_pcb` as out of scope for layout review
+2. Tell the user PCB layout review is not performed by this skill
+3. Ask for a schematic, netlist, or BOM if they want an electrical or procurement review
+4. Do not convert the board or invent routing/stackup findings
 
 **Example 2: Review schematic PDF + BOM**
 

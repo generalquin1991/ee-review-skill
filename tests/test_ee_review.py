@@ -250,6 +250,8 @@ class SkillCoverageTests(unittest.TestCase):
         self.assertIn("references/review-contract.md", skill)
         self.assertIn("PDF-only", skill)
         self.assertIn("PCB layout review is out of scope", skill)
+        self.assertIn("PCB layout review is out of scope", (ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("不做 PCB Layout 评审", (ROOT / "README.zh-CN.md").read_text(encoding="utf-8"))
         contract = (ROOT / "references" / "review-contract.md").read_text(encoding="utf-8")
         self.assertIn("PCB layout is out of scope", contract)
         self.assertIn("no schematic or netlist in this review", contract)

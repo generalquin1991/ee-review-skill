@@ -7,6 +7,7 @@ run this to keep VERSION/CHANGELOG aligned and the PPT template desensitized.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 import zipfile
@@ -116,6 +117,22 @@ def check_skill_size() -> bool:
     return True
 
 
+def _kicad_reader_available() -> bool:
+    """True when KiCad's official netlist reader can be imported on this machine."""
+    spec = importlib.util.spec_from_file_location(
+        "_hyg_parse_kicad", ROOT / "scripts" / "parse_kicad_netlist.py"
+    )
+    if spec is None or spec.loader is None:
+        return False
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+        mod._load_kicad_reader()
+    except Exception:
+        return False
+    return True
+
+
 def check_acceptance_smoke() -> bool:
     xml = ROOT / "examples" / "acceptance-demo" / "demo_board.xml"
     review = ROOT / "examples" / "acceptance-demo" / "ee-review" / "review.json"
@@ -132,10 +149,15 @@ def check_acceptance_smoke() -> bool:
     out_html = ROOT / "examples" / "acceptance-demo" / "ee-review" / "_ci_smoke.html"
     out_pptx = ROOT / "examples" / "acceptance-demo" / "ee-review" / "_ci_smoke.pptx"
     cmds = [
-        [sys.executable, str(parse), str(xml)],
         [sys.executable, str(gen_report), str(review), str(out_html)],
         [sys.executable, str(gen_pptx), str(deck), "-o", str(out_pptx)],
     ]
+    # parse_kicad_netlist needs KiCad's kicad_netlist_reader.py. Everyday CI runners
+    # do not install KiCad; skip that step there. Local machines with KiCad still smoke it.
+    if _kicad_reader_available():
+        cmds.insert(0, [sys.executable, str(parse), str(xml)])
+    else:
+        ok("skip KiCad XML parse smoke (kicad_netlist_reader not on this runner)")
     for cmd in cmds:
         proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
         if proc.returncode != 0:
@@ -146,7 +168,7 @@ def check_acceptance_smoke() -> bool:
     for path in (out_html, out_pptx):
         if path.is_file():
             path.unlink()
-    ok("acceptance parse/report/pptx smoke")
+    ok("acceptance report/pptx smoke")
     return True
 
 

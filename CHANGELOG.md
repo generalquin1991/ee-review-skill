@@ -10,7 +10,8 @@ the single-line `VERSION` file at the repository root.
 - `LICENSE` (proprietary / all rights reserved; internal sharing only until a
   broader grant exists)
 - `VERSION` and this `CHANGELOG`
-- Package-hygiene checks: PPT brand scan, acceptance demo smoke, VERSION sync
+- Package-hygiene checks: PPT brand scan, acceptance demo smoke (report/PPT;
+  KiCad XML parse when `kicad_netlist_reader` is present), VERSION sync
 - Hardened PPT rule: conclusion text must match the crops on that finding
 
 ### Changed

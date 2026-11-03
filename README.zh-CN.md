@@ -26,20 +26,21 @@ Windows 下 Codex / WorkBuddy 目标目录：`%USERPROFILE%\.agents\skills\ee-re
 
 不要只拷贝一个 `SKILL.md`。评审命令和检查表在 `scripts/` 与 `references/` 中。
 
-## 运行依赖
+## 运行时依赖矩阵
 
-Python 评审脚本使用 Python 3.11 标准库；CI 测试环境为 Python 3.11。只有使用对应功能时才需要安装额外工具：
+| 依赖 | 是否必需 | 用途 |
+| --- | --- | --- |
+| Python 3.11+（评审脚本仅用标准库） | **必需** | 解析器、HTML 报告、PPT 填字、测试 |
+| 设计输入（原理图 PDF / 网表 / BOM） | **必需** | 真正的评审 |
+| KiCad 8+ / `kicad-cli` | 可选 | 从 `.kicad_sch` 导出 `kicadxml`、裁剪符号。若已有 XML 网表则不需要 |
+| Graphviz `dot` | 可选 | 系统框图、电源树 PNG/SVG |
+| Pillow（`requirements-pptx.txt`） | 可选 | 评审 PPT 上框选原理图/规格书截图 |
+| `uv` + `altium-monkey==2026.9.22` | 可选 | 原生解析 Altium `.PrjPcb`；见 [Altium 解析说明](references/altium-monkey.md) |
+| 访问立创 / Digi-Key / Mouser / Arrow / Avnet，或带日期的导出 | 可选 | 库存、交期、生命周期。没有则这些行保持 `not verifiable` |
+| PyYAML + Codex `quick_validate.py` | 可选（维护者） | 仅用于 `python3 scripts/validate_skill.py`。建议 venv：`python3 -m venv .venv && .venv/bin/pip install -r requirements-validation.txt` |
+| Windows 上的 PADS | 可选 | 自动导出原理图/网表；否则按手动导出说明 |
 
-| 功能 | 额外依赖 |
-| --- | --- |
-| KiCad 原理图网表导出 / 解析 | KiCad 8 或更高版本，并确保 `kicad-cli` 可用（macOS 也会尝试 `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli`） |
-| 系统框图和电源树 | Graphviz `dot` |
-| Altium 工程连接关系解析 | `uv` 和固定版本 `altium-monkey==2026.9.22`，详见 [Altium 解析说明](references/altium-monkey.md) |
-| 评审演示文稿中的原理图/图片裁剪 | Pillow：运行 `python3 -m pip install -r requirements-pptx.txt` |
-| Skill 结构校验 | PyYAML 和 Codex `quick_validate.py`；运行 `python3 scripts/validate_skill.py` |
-| PADS 自动导出原理图/网表 | Windows 上的 PADS；否则参照手动导出说明 |
-
-器件库存和生命周期检查需要联网访问分销商页面，或使用用户提供的带日期数据；不能用记忆中的库存信息代替证据。
+CI 以 Python 3.11 测试。本机更新的 CPython 3.x 跑标准库脚本通常可用。PCB Layout 工具不在评审合同内。
 
 ## 验证
 
@@ -47,11 +48,27 @@ Python 评审脚本使用 Python 3.11 标准库；CI 测试环境为 Python 3.11
 python3 tests/test_ee_review.py
 ```
 
-在安装了 PyYAML 且能访问 Codex validator 的环境中：
+带 PyYAML 的 venv（且能访问 Codex validator）：
 
 ```bash
-python3 scripts/validate_skill.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-validation.txt
+.venv/bin/python scripts/validate_skill.py
 ```
+
+验收基线（脱敏 KiCad XML 网表 + BOM + HTML/PPT）：
+
+```bash
+python3 scripts/parse_kicad_netlist.py examples/acceptance-demo/demo_board.xml
+python3 scripts/generate_report.py \
+  examples/acceptance-demo/ee-review/review.json \
+  examples/acceptance-demo/ee-review/DEMO_design_review_20261103.html
+python3 scripts/generate_pptx.py \
+  examples/acceptance-demo/ee-review/deck.json \
+  -o examples/acceptance-demo/ee-review/DEMO_design_review_20261103.pptx
+```
+
+详见 [examples/acceptance-demo/README.md](examples/acceptance-demo/README.md)。
 
 ## 分享与许可
 

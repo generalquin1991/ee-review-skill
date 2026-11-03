@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceptance Demo Board - EE Design Review Report</title>
+    <style>
+        :root {
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+            --text-light: #7f8c8d;
+            --border: #e0e6ed;
+            --accent: #2196f3;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        /* Header */
+        .report-header {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+            color: white;
+            padding: 40px 24px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+        }
+        .report-header h1 { font-size: 28px; margin-bottom: 8px; }
+        .report-meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; opacity: 0.9; }
+        .report-meta span { display: inline-flex; align-items: center; gap: 6px; }
+
+        /* Overall Score Card */
+        .overall-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+        .overall-grade-circle {
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            border: 6px solid #2196f3;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .overall-grade-circle .letter { font-size: 48px; font-weight: 800; color: #2196f3; line-height: 1; }
+        .overall-grade-circle .label { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+        .overall-summary-text { flex: 1; min-width: 300px; }
+        .overall-summary-text h2 { font-size: 20px; margin-bottom: 12px; }
+        .overall-summary-text p { color: var(--text-light); font-size: 14px; }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex; gap: 16px; flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .stat-box {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px 24px;
+            flex: 1; min-width: 140px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-box .num { font-size: 32px; font-weight: 800; }
+        .stat-box .lbl { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+
+        /* Charts Section */
+        .charts-section {
+            display: flex; gap: 24px; flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .chart-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            flex: 1; min-width: 360px;
+        }
+        .chart-card h3 { font-size: 16px; margin-bottom: 16px; color: var(--text); }
+        .chart-card svg { display: block; margin: 0 auto; }
+
+        /* Top Risks & Recommendations */
+        .insights-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) { .insights-grid { grid-template-columns: 1fr; } }
+        .insight-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+        }
+        .insight-card h3 { font-size: 16px; margin-bottom: 16px; }
+        .insight-card ul { list-style: none; padding: 0; }
+        .insight-card li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            display: flex; gap: 8px;
+        }
+        .insight-card li:last-child { border-bottom: none; }
+        .risk-card li::before { content: "\26A0"; color: #f39c12; }
+        .rec-card li::before { content: "\2705"; }
+
+        /* Dimension Nav */
+        .dim-nav {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+            display: flex; gap: 16px; flex-wrap: wrap;
+        }
+        .dim-nav a {
+            text-decoration: none;
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .dim-nav a:hover { text-decoration: underline; }
+
+        /* Dimension Card */
+        .dimension-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        .dimension-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 16px;
+        }
+        .dimension-info h2 { font-size: 20px; margin-top: 8px; }
+        .category-tag {
+            display: inline-block;
+            background: #e8eaf6; color: #3f51b5;
+            padding: 3px 10px; border-radius: 4px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+        }
+        .dimension-grade {
+            border: 3px solid #999;
+            border-radius: 12px;
+            padding: 12px 20px; text-align: center;
+            min-width: 80px;
+        }
+        .grade-letter { font-size: 36px; font-weight: 800; line-height: 1; }
+        .grade-label { font-size: 11px; color: var(--text-light); margin-top: 4px; }
+
+        .dimension-stats {
+            display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-item .stat-value { font-size: 22px; font-weight: 700; }
+        .stat-item .stat-label { font-size: 12px; color: var(--text-light); }
+
+        /* Findings */
+        .findings-list { display: flex; flex-direction: column; gap: 12px; }
+        .no-findings { color: var(--text-light); font-style: italic; padding: 16px 0; }
+        .finding {
+            padding: 16px;
+            border-radius: 8px;
+        }
+        .finding-header {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .severity-badge {
+            color: white; padding: 3px 10px;
+            border-radius: 4px; font-size: 11px; font-weight: 600;
+        }
+        .finding-title { font-weight: 600; font-size: 15px; }
+        .finding-desc { font-size: 14px; color: var(--text); margin-bottom: 6px; }
+        .finding-loc, .finding-rec { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+
+        /* Input Files */
+        .input-files {
+            background: var(--card-bg);
+            border-radius: 12px; padding: 20px 24px;
+            margin-bottom: 24px; box-shadow: var(--shadow);
+        }
+        .input-files h3 { font-size: 15px; margin-bottom: 12px; }
+        .input-files ul { list-style: none; }
+        .input-files li {
+            padding: 6px 0; font-size: 14px;
+            color: var(--text-light);
+        }
+        .input-files li::before { content: "\1F4C4  "; }
+
+        /* Mandatory / Conditional Coverage */
+        .coverage-section { background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+        .coverage-section h3 { font-size: 16px; margin-bottom: 6px; }
+        .coverage-note { color: var(--text-light); font-size: 12.5px; margin-bottom: 14px; }
+        .coverage-table-wrap { width: 100%; overflow-x: auto; }
+        .coverage-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
+        .coverage-table th, .coverage-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+        .coverage-table th { background: #f0f4f8; color: #455a75; font-weight: 600; }
+        .coverage-status { display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .coverage-confirmed { background: #eafaf1; color: #1f8a4c; }
+        .coverage-finding { background: #fdeaea; color: #c0392b; }
+        .coverage-na { background: #eef1f4; color: #596775; }
+        .coverage-unverified { background: #fff4e0; color: #b76e00; }
+
+        /* I2C Map Section */
+        .i2c-section { background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+        .i2c-section h3 { font-size: 16px; margin-bottom: 12px; }
+        .i2c-note { font-size: 12.5px; color: var(--text-light); line-height: 1.6; margin-bottom: 14px; background: #f7f9fc; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 6px; }
+        .i2c-table-wrap { width: 100%; overflow-x: auto; }
+        .i2c-tree-table { border-collapse: collapse; font-size: 13px; min-width: 920px; }
+        .i2c-tree-table th, .i2c-tree-table td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; vertical-align: middle; white-space: nowrap; }
+        .i2c-tree-table th { background: #f0f4f8; font-weight: 600; color: #455a75; }
+        .i2c-tree-table td.tree { color: #2c3e50; }
+        .i2c-tree-table td.ref, .i2c-tree-table td.type { color: #455a75; }
+        .i2c-tree-table td.addr { font-family: 'SFMono-Regular', Consolas, monospace; font-weight: 700; color: var(--accent); }
+        .i2c-tree-table td.role, .i2c-tree-table td.seg-role { color: var(--text); white-space: normal; min-width: 280px; }
+        .lvl-badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 1px 6px; margin-right: 6px; vertical-align: middle; }
+        .lvl-bus { background: #1f3a5f; color: #fff; }
+        .i2c-topo-section { background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+        .i2c-topo-section h3 { font-size: 16px; margin-bottom: 12px; }
+        .i2c-topo-wrap { width: 100%; overflow-x: auto; }
+        .i2c-topo-wrap svg { min-width: 760px; }
+        .lvl-device { background: #e3ecf7; color: #2b6cb0; }
+        .lvl-segment { background: #fff3e0; color: #c77700; }
+        .i2c-bus-row { background: #1f3a5f; }
+        .i2c-bus-row td.tree span { color: #fff; font-weight: 700; }
+        .i2c-bus-row td.bus-detail { color: #cfe3ff; font-size: 12.5px; font-weight: 500; }
+        .i2c-seg-row { background: #eef4fb; }
+        .i2c-seg-row td.tree span { color: #2b6cb0; font-weight: 600; }
+        .i2c-dev-row:nth-child(even) { background: #fafcfe; }
+
+        /* Final Conclusion */
+        .conclusion-section { background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; border-left: 5px solid var(--accent); }
+        .conclusion-section h3 { font-size: 16px; margin-bottom: 16px; }
+        .conclusion-verdict { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #f7f9fc; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+        .verdict-text { flex: 1 1 320px; font-size: 14px; line-height: 1.6; color: var(--text); }
+        .compliance-badge { flex: 0 0 auto; background: #fff4e0; color: #b76e00; border: 1px solid #ffd591; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+        .conclusion-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .concl-card { border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
+        .concl-card h4 { font-size: 13.5px; margin-bottom: 10px; }
+        .concl-card ul { margin: 0; padding-left: 18px; }
+        .concl-card li { font-size: 12.5px; line-height: 1.55; margin-bottom: 6px; }
+        .real-card { background: #eafaf0; border-color: #b7ebc8; }
+        .real-card h4 { color: #1f8a4c; }
+        .retract-card { background: #f3f0ff; border-color: #d3c9ff; }
+        .retract-card h4 { color: #6b4cff; }
+        .dev-card { background: #fff8e8; border-color: #ffe1a8; }
+        .dev-card h4 { color: #b76e00; }
+        .fix-card { background: #fdecec; border-color: #f6b8b8; }
+        .fix-card h4 { color: #c0392b; }
+        @media (max-width: 768px) { .conclusion-grid { grid-template-columns: 1fr; } }
+
+        /* Footer */
+        .report-footer {
+            text-align: center; padding: 32px;
+            color: var(--text-light); font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="report-header">
+            <h1>Acceptance Demo Board</h1>
+            <div class="report-meta">
+                <span>&#128197; 2026-11-03</span>
+                <span>&#128100; Demo Reviewer</span>
+                <span>&#128202; 3 Review Dimensions</span>
+            </div>
+        </div>
+
+        <!-- Overall Score -->
+        <div class="overall-card">
+            <div class="overall-grade-circle">
+                <div class="letter">B</div>
+                <div class="label">Acceptable</div>
+            </div>
+            <div class="overall-summary-text">
+                <h2>Overall Assessment</h2>
+                <p>Parser-backed netlist and BOM review of the desensitized acceptance demo. One major E96 finding on R2; distributor stock left not verifiable without a fetched page.</p>
+                
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-box">
+                <div class="num">4</div>
+                <div class="lbl">Total Findings</div>
+            </div>
+            <div class="stat-box">
+                <div class="num" style="color: #e74c3c;">0</div>
+                <div class="lbl">Critical Issues</div>
+            </div>
+            <div class="stat-box">
+                <div class="num" style="color: #f1c40f;">1</div>
+                <div class="lbl">Major Issues</div>
+            </div>
+            <div class="stat-box">
+                <div class="num" style="color: #000000;">2</div>
+                <div class="lbl">Minor Issues</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <h3>Dimension Score Radar</h3>
+                <svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+<circle cx="200" cy="200" r="35" fill="none" stroke="#ddd" stroke-width="1"/>
+<circle cx="200" cy="200" r="70" fill="none" stroke="#ddd" stroke-width="1"/>
+<circle cx="200" cy="200" r="105" fill="none" stroke="#ddd" stroke-width="1"/>
+<circle cx="200" cy="200" r="140" fill="none" stroke="#ddd" stroke-width="1"/>
+
+<line x1="200" y1="200" x2="200.0" y2="60.0" stroke="#ccc" stroke-width="1"/>
+<line x1="200" y1="200" x2="321.2" y2="270.0" stroke="#ccc" stroke-width="1"/>
+<line x1="200" y1="200" x2="78.8" y2="270.0" stroke="#ccc" stroke-width="1"/>
+
+<polygon points="200.0,67.0 303.1,259.5 103.0,256.0" fill="rgba(33,150,243,0.2)" stroke="#2196f3" stroke-width="2"/>
+
+<circle cx="200.0" cy="67.0" r="4" fill="#2196f3"/>
+<circle cx="303.1" cy="259.5" r="4" fill="#2196f3"/>
+<circle cx="103.0" cy="256.0" r="4" fill="#2196f3"/>
+
+<text x="200.0" y="35.0" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="#666">Power Supply...</text>
+<text x="342.9" y="282.5" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="#666">Circuit Logi...</text>
+<text x="57.1" y="282.5" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="#666">Component Av...</text>
+
+</svg>
+            </div>
+            <div class="chart-card">
+                <h3>Findings Distribution</h3>
+                <svg width="350" height="200" viewBox="0 0 350 200" xmlns="http://www.w3.org/2000/svg">
+<text x="175" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">Findings Distribution</text>
+<rect x="50" y="170" width="60" height="0" fill="#e74c3c" rx="4"/>
+<rect x="140" y="100" width="60" height="70" fill="#f1c40f" rx="4"/>
+<rect x="230" y="30" width="60" height="140" fill="#000000" rx="4"/>
+
+<text x="80" y="162" text-anchor="middle" font-size="14" font-weight="bold" fill="#e74c3c">0</text>
+<text x="170" y="92" text-anchor="middle" font-size="14" font-weight="bold" fill="#f1c40f">1</text>
+<text x="260" y="22" text-anchor="middle" font-size="14" font-weight="bold" fill="#000000">2</text>
+
+<text x="80" y="190" text-anchor="middle" font-size="11" fill="#666">Critical</text>
+<text x="170" y="190" text-anchor="middle" font-size="11" fill="#666">Major</text>
+<text x="260" y="190" text-anchor="middle" font-size="11" fill="#666">Minor</text>
+
+</svg>
+            </div>
+        </div>
+
+        <!-- Top Risks & Recommendations -->
+        <div class="insights-grid">
+            <div class="insight-card risk-card">
+                <h3>&#9888; Top Risks</h3>
+                <ul><li>R2 4.7 kΩ is outside IEC 60063 E96</li></ul>
+            </div>
+            <div class="insight-card rec-card">
+                <h3>&#9989; Key Recommendations</h3>
+                <ul><li>Replace R2 with an E96 4.75 kΩ resistor</li><li>Fetch distributor evidence before claiming stock or lifecycle</li></ul>
+            </div>
+        </div>
+
+        <!-- Input Files -->
+        <div class="input-files"><h3>&#128206; Reviewed Files</h3><ul><li>demo_board.kicad_sch</li><li>demo_board.xml</li><li>bom.csv</li></ul></div>
+
+        <!-- Mandatory / Conditional Review Coverage -->
+        
+    <div class="coverage-section">
+        <h3>&#9989; Review Coverage</h3>
+        <p class="coverage-note">Mandatory evidence and feature-triggered checks considered for this review.</p>
+        <div class="coverage-table-wrap">
+        <table class="coverage-table">
+            <thead><tr><th>Check</th><th>Trigger / Evidence Expected</th><th>Status</th><th>Evidence / Finding Location</th></tr></thead>
+            <tbody><tr><td>System block diagram</td><td>single-board demo; user confirmed skip</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>single regulator-less resistive demo; skip confirmed for acceptance baseline</td></tr><tr><td>Power tree</td><td>schematic and netlist present</td><td><span class='coverage-status coverage-confirmed'>confirmed</span></td><td>ee-review/demo_power_tree.dot</td></tr><tr><td>ESD and external boundaries</td><td>no external connector</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>demo_board.xml has no connector refs</td></tr><tr><td>Battery thermal/energy</td><td>BT1 cell present</td><td><span class='coverage-status coverage-unverified'>not verifiable</span></td><td>cell datasheet and pack protector not supplied</td></tr><tr><td>Antenna matching</td><td>no RF port</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no RF net in demo_board.xml</td></tr><tr><td>USB-C CC</td><td>no USB-C</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no USB-C receptacle</td></tr><tr><td>4G burst power</td><td>no modem</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no cellular modem</td></tr><tr><td>Motor transient power</td><td>no motor</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no inductive load</td></tr><tr><td>Low-power design</td><td>battery cell present</td><td><span class='coverage-status coverage-unverified'>not verifiable</span></td><td>no measured standby current</td></tr><tr><td>EMC/EMI</td><td>no cable, switcher, or radio</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>private EMC table selects no cable phenomena</td></tr><tr><td>Safety (electrical)</td><td>battery only, no mains</td><td><span class='coverage-status coverage-unverified'>not verifiable</span></td><td>pack protection and PTC not confirmed</td></tr><tr><td>Thermal management</td><td>low-power resistive demo</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no power-dense IC</td></tr><tr><td>DFM/DFT readiness</td><td>schematic/BOM only</td><td><span class='coverage-status coverage-unverified'>not verifiable</span></td><td>PCB layout review out of scope; no DFT list</td></tr><tr><td>Firmware-HW co-verification</td><td>no firmware-gated IC</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no MCU/PMIC/charger</td></tr><tr><td>Component availability (sourcing)</td><td>BOM present</td><td><span class='coverage-status coverage-unverified'>not verifiable</span></td><td>no distributor page fetched in this baseline</td></tr><tr><td>CERE/project power baseline</td><td>no controlled baseline named</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>no CERE document</td></tr><tr><td>E96 resistors</td><td>R1 R2 on schematic/BOM</td><td><span class='coverage-status coverage-finding'>finding</span></td><td>R2 4.7k is off-grid; R1 10k is E96</td></tr><tr><td>PCB layout review</td><td>layout files absent / out of scope</td><td><span class='coverage-status coverage-na'>not applicable</span></td><td>skill refuses PCB layout review</td></tr></tbody>
+        </table>
+        </div>
+    </div>
+
+        <!-- I2C Address Map -->
+        
+
+        <!-- I2C Topology -->
+        
+
+        <!-- Final Conclusion -->
+        
+
+        <!-- Dimension Nav -->
+        <div class="dim-nav"><a href="#dim-power-supply-design">Power Supply Design</a><a href="#dim-circuit-logic-correctness">Circuit Logic &amp; Correctness</a><a href="#dim-component-availability-lifecycle">Component Availability &amp; Lifecycle</a></div>
+
+        <!-- Dimension Cards -->
+        
+    <div class="dimension-card" id="dim-power-supply-design">
+        <div class="dimension-header">
+            <div class="dimension-info">
+                <span class="category-tag">Schematic</span>
+                <h2>Power Supply Design</h2>
+            </div>
+            <div class="dimension-grade" style="border-color: #27ae60;">
+                <div class="grade-letter" style="color: #27ae60;">A</div>
+                <div class="grade-label">Good</div>
+            </div>
+        </div>
+        <div class="dimension-stats">
+            <div class="stat-item">
+                <span class="stat-value">95/100</span>
+                <span class="stat-label">Score</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #e74c3c;">0</span>
+                <span class="stat-label">Critical</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #f1c40f;">0</span>
+                <span class="stat-label">Major</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #000000;">1</span>
+                <span class="stat-label">Minor</span>
+            </div>
+        </div>
+        <div class="findings-list">
+            
+    <div class="finding" style="border-left: 4px solid #27ae60; background: #eafaf1;">
+        <div class="finding-header">
+            <span class="severity-badge" style="background: #27ae60;">&#128994; Okay</span>
+            <span class="finding-title">3V3 rail has a source path from BT1</span>
+        </div>
+        <div class="finding-desc">KicadNetlist shows BT1.1 and R1.1 on VBAT, and R1.2 with R2.1 and C1.1 on 3V3.</div>
+        <div class="finding-loc"><strong>Location:</strong> demo_board.xml nets VBAT and 3V3</div>
+        <div class="finding-rec"><strong>Recommendation:</strong> There are no issues with the parser-proven source path on this demo.</div>
+    </div>
+    
+    <div class="finding" style="border-left: 4px solid #000000; background: #ffffff;">
+        <div class="finding-header">
+            <span class="severity-badge" style="background: #000000;"> Minor</span>
+            <span class="finding-title">Power tree recorded</span>
+        </div>
+        <div class="finding-desc">ee-review/demo_power_tree.dot documents BT1 to R1 to 3V3 to R2/C1.</div>
+        <div class="finding-loc"><strong>Location:</strong> ee-review/demo_power_tree.dot</div>
+        <div class="finding-rec"><strong>Recommendation:</strong> Keep the power-tree path cited in coverage.</div>
+    </div>
+    
+        </div>
+    </div>
+    
+    <div class="dimension-card" id="dim-circuit-logic-correctness">
+        <div class="dimension-header">
+            <div class="dimension-info">
+                <span class="category-tag">Schematic</span>
+                <h2>Circuit Logic &amp; Correctness</h2>
+            </div>
+            <div class="dimension-grade" style="border-color: #2196f3;">
+                <div class="grade-letter" style="color: #2196f3;">B</div>
+                <div class="grade-label">Acceptable</div>
+            </div>
+        </div>
+        <div class="dimension-stats">
+            <div class="stat-item">
+                <span class="stat-value">85/100</span>
+                <span class="stat-label">Score</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #e74c3c;">0</span>
+                <span class="stat-label">Critical</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #f1c40f;">1</span>
+                <span class="stat-label">Major</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #000000;">0</span>
+                <span class="stat-label">Minor</span>
+            </div>
+        </div>
+        <div class="findings-list">
+            
+    <div class="finding" style="border-left: 4px solid #f1c40f; background: #fff9db;">
+        <div class="finding-header">
+            <span class="severity-badge" style="background: #f1c40f;"> Major</span>
+            <span class="finding-title">R2 is outside the E96 series</span>
+        </div>
+        <div class="finding-desc">R2 prints 4.7 kΩ. The E96 mantissa list requires 4.75, not 4.7. R1 10 kΩ is on-grid.</div>
+        <div class="finding-loc"><strong>Location:</strong> R2; bom.csv value 4.7k</div>
+        <div class="finding-rec"><strong>Recommendation:</strong> We recommend replacing R2 with 4.75 kΩ ±1% in 0603, for example RC0603FR-074K75L.</div>
+    </div>
+    
+        </div>
+    </div>
+    
+    <div class="dimension-card" id="dim-component-availability-lifecycle">
+        <div class="dimension-header">
+            <div class="dimension-info">
+                <span class="category-tag">BOM</span>
+                <h2>Component Availability &amp; Lifecycle</h2>
+            </div>
+            <div class="dimension-grade" style="border-color: #2196f3;">
+                <div class="grade-letter" style="color: #2196f3;">B</div>
+                <div class="grade-label">Acceptable</div>
+            </div>
+        </div>
+        <div class="dimension-stats">
+            <div class="stat-item">
+                <span class="stat-value">80/100</span>
+                <span class="stat-label">Score</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #e74c3c;">0</span>
+                <span class="stat-label">Critical</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #f1c40f;">0</span>
+                <span class="stat-label">Major</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="color: #000000;">1</span>
+                <span class="stat-label">Minor</span>
+            </div>
+        </div>
+        <div class="findings-list">
+            
+    <div class="finding" style="border-left: 4px solid #000000; background: #ffffff;">
+        <div class="finding-header">
+            <span class="severity-badge" style="background: #000000;"> Minor</span>
+            <span class="finding-title">Stock and lifecycle not verified</span>
+        </div>
+        <div class="finding-desc">BOM lines name Yageo and Samsung MPNs, but this baseline did not fetch a distributor page.</div>
+        <div class="finding-loc"><strong>Location:</strong> bom.csv</div>
+        <div class="finding-rec"><strong>Recommendation:</strong> Fetch LCSC or Digi-Key pages, or attach a dated export, before treating availability as confirmed.</div>
+    </div>
+    
+        </div>
+    </div>
+    
+
+        <!-- Footer -->
+        <div class="report-footer">
+            <p>Generated by EE Review Skill | 2026-11-03</p>
+        </div>
+    </div>
+</body>
+</html>

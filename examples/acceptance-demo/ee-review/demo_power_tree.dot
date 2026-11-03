@@ -1,0 +1,17 @@
+digraph power_tree {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=12, bgcolor="white"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fillcolor="#F5F5F5"];
+  edge [fontname="Helvetica", fontsize=10];
+
+  BT1 [label="BT1\nLiCell"];
+  R1 [label="R1\n10 kΩ series"];
+  RAIL [label="3V3", fillcolor="#E3F2FD"];
+  R2 [label="R2\n4.7 kΩ load"];
+  C1 [label="C1\n100 nF"];
+
+  BT1 -> R1 [label="VBAT"];
+  R1 -> RAIL [label="3V3"];
+  RAIL -> R2;
+  RAIL -> C1;
+}

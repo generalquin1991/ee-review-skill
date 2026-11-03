@@ -1,0 +1,103 @@
+{
+  "project_name": "Acceptance Demo Board",
+  "review_date": "2026-11-03",
+  "reviewer": "Demo Reviewer",
+  "input_files": [
+    "demo_board.kicad_sch",
+    "demo_board.xml",
+    "bom.csv"
+  ],
+  "overall_grade": "B",
+  "overall_summary": "Parser-backed netlist and BOM review of the desensitized acceptance demo. One major E96 finding on R2; distributor stock left not verifiable without a fetched page.",
+  "coverage": [
+    {"check": "System block diagram", "trigger": "single-board demo; user confirmed skip", "status": "not applicable", "evidence": "single regulator-less resistive demo; skip confirmed for acceptance baseline"},
+    {"check": "Power tree", "trigger": "schematic and netlist present", "status": "confirmed", "evidence": "ee-review/demo_power_tree.dot"},
+    {"check": "ESD and external boundaries", "trigger": "no external connector", "status": "not applicable", "evidence": "demo_board.xml has no connector refs"},
+    {"check": "Battery thermal/energy", "trigger": "BT1 cell present", "status": "not verifiable", "evidence": "cell datasheet and pack protector not supplied"},
+    {"check": "Antenna matching", "trigger": "no RF port", "status": "not applicable", "evidence": "no RF net in demo_board.xml"},
+    {"check": "USB-C CC", "trigger": "no USB-C", "status": "not applicable", "evidence": "no USB-C receptacle"},
+    {"check": "4G burst power", "trigger": "no modem", "status": "not applicable", "evidence": "no cellular modem"},
+    {"check": "Motor transient power", "trigger": "no motor", "status": "not applicable", "evidence": "no inductive load"},
+    {"check": "Low-power design", "trigger": "battery cell present", "status": "not verifiable", "evidence": "no measured standby current"},
+    {"check": "EMC/EMI", "trigger": "no cable, switcher, or radio", "status": "not applicable", "evidence": "private EMC table selects no cable phenomena"},
+    {"check": "Safety (electrical)", "trigger": "battery only, no mains", "status": "not verifiable", "evidence": "pack protection and PTC not confirmed"},
+    {"check": "Thermal management", "trigger": "low-power resistive demo", "status": "not applicable", "evidence": "no power-dense IC"},
+    {"check": "DFM/DFT readiness", "trigger": "schematic/BOM only", "status": "not verifiable", "evidence": "PCB layout review out of scope; no DFT list"},
+    {"check": "Firmware-HW co-verification", "trigger": "no firmware-gated IC", "status": "not applicable", "evidence": "no MCU/PMIC/charger"},
+    {"check": "Component availability (sourcing)", "trigger": "BOM present", "status": "not verifiable", "evidence": "no distributor page fetched in this baseline"},
+    {"check": "CERE/project power baseline", "trigger": "no controlled baseline named", "status": "not applicable", "evidence": "no CERE document"},
+    {"check": "E96 resistors", "trigger": "R1 R2 on schematic/BOM", "status": "finding", "evidence": "R2 4.7k is off-grid; R1 10k is E96"},
+    {"check": "PCB layout review", "trigger": "layout files absent / out of scope", "status": "not applicable", "evidence": "skill refuses PCB layout review"}
+  ],
+  "dimensions": [
+    {
+      "name": "Power Supply Design",
+      "category": "schematic",
+      "grade": "A",
+      "score": 95,
+      "max_score": 100,
+      "findings": [
+        {
+          "severity": "okay",
+          "title": "3V3 rail has a source path from BT1",
+          "description": "KicadNetlist shows BT1.1 and R1.1 on VBAT, and R1.2 with R2.1 and C1.1 on 3V3.",
+          "location": "demo_board.xml nets VBAT and 3V3",
+          "recommendation": "There are no issues with the parser-proven source path on this demo."
+        },
+        {
+          "severity": "minor",
+          "title": "Power tree recorded",
+          "description": "ee-review/demo_power_tree.dot documents BT1 to R1 to 3V3 to R2/C1.",
+          "location": "ee-review/demo_power_tree.dot",
+          "recommendation": "Keep the power-tree path cited in coverage."
+        }
+      ]
+    },
+    {
+      "name": "Circuit Logic & Correctness",
+      "category": "schematic",
+      "grade": "B",
+      "score": 85,
+      "max_score": 100,
+      "findings": [
+        {
+          "severity": "major",
+          "title": "R2 is outside the E96 series",
+          "description": "R2 prints 4.7 kΩ. The E96 mantissa list requires 4.75, not 4.7. R1 10 kΩ is on-grid.",
+          "location": "R2; bom.csv value 4.7k",
+          "recommendation": "We recommend replacing R2 with 4.75 kΩ ±1% in 0603, for example RC0603FR-074K75L."
+        }
+      ]
+    },
+    {
+      "name": "Component Availability & Lifecycle",
+      "category": "bom",
+      "grade": "B",
+      "score": 80,
+      "max_score": 100,
+      "findings": [
+        {
+          "severity": "minor",
+          "title": "Stock and lifecycle not verified",
+          "description": "BOM lines name Yageo and Samsung MPNs, but this baseline did not fetch a distributor page.",
+          "location": "bom.csv",
+          "recommendation": "Fetch LCSC or Digi-Key pages, or attach a dated export, before treating availability as confirmed."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_findings": 4,
+    "critical_count": 0,
+    "major_count": 1,
+    "minor_count": 2,
+    "okay_count": 1,
+    "top_risks": [
+      "R2 4.7 kΩ is outside IEC 60063 E96"
+    ],
+    "recommendations": [
+      "Replace R2 with an E96 4.75 kΩ resistor",
+      "Fetch distributor evidence before claiming stock or lifecycle"
+    ]
+  }
+}

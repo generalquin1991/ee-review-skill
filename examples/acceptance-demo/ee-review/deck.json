@@ -1,0 +1,23 @@
+{
+  "project_code": "DEMO",
+  "document_title": "Design review report",
+  "designer": "Demo Designer",
+  "reviewer": "Demo Reviewer",
+  "review_date": "20261103",
+  "slides": [
+    {
+      "eyebrow": "BOM · resistors",
+      "subtitle": "R2 is outside the E96 resistor series.",
+      "severity": "major",
+      "body": "Replace R2 4.7 kΩ with an E96 4.75 kΩ ±1% part. R1 10 kΩ stays on-grid.",
+      "table": {
+        "columns": ["Value", "References", "Recommended"],
+        "rows": [
+          ["4.7 kΩ", "R2", "4.75 kΩ"],
+          ["10 kΩ", "R1", "on-grid"]
+        ]
+      },
+      "single_page": true
+    }
+  ]
+}

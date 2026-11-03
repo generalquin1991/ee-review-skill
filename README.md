@@ -26,20 +26,21 @@ After install:
 
 Do not install only `SKILL.md`. The review commands and checklists live under `scripts/` and `references/`.
 
-## Runtime requirements
+## Runtime dependency matrix
 
-The Python review scripts use the Python 3.11 standard library. The CI suite is tested on Python 3.11. Install additional tools only for workflows that need them:
+| Dependency | Required? | Needed for |
+| --- | --- | --- |
+| Python 3.11+ (stdlib only for review scripts) | **Required** | Parsers, HTML report, PPT text fill, tests |
+| Design inputs (schematic PDF / netlist / BOM) | **Required** | Any real review |
+| KiCad 8+ / `kicad-cli` | Optional | Exporting KiCad `.kicad_sch` to `kicadxml`; cropping KiCad symbols. Not needed if an XML netlist is already supplied |
+| Graphviz `dot` | Optional | System block diagram and power-tree PNG/SVG |
+| Pillow (`requirements-pptx.txt`) | Optional | Drawing boxes/arrows on schematic or datasheet crops for the PPT |
+| `uv` + `altium-monkey==2026.9.22` | Optional | Native Altium `.PrjPcb` connectivity; see [Altium parsing](references/altium-monkey.md) |
+| Network to LCSC / Digi-Key / Mouser / Arrow / Avnet, or a dated export | Optional | Stock, price, lead time, lifecycle. Without it those rows stay `not verifiable` |
+| PyYAML + Codex `quick_validate.py` | Optional (maintainers) | `python3 scripts/validate_skill.py` only. Prefer a venv: `python3 -m venv .venv && .venv/bin/pip install -r requirements-validation.txt` |
+| PADS on Windows | Optional | Automated PADS schematic/netlist export; otherwise use the manual export guide |
 
-| Workflow | Additional requirement |
-| --- | --- |
-| KiCad schematic netlist export / parsing | KiCad 8 or later, with `kicad-cli` available (also tried at `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` on macOS) |
-| System and power diagrams | Graphviz `dot` |
-| Altium project connectivity parsing | `uv` and the pinned `altium-monkey==2026.9.22` package; see [Altium parsing](references/altium-monkey.md) |
-| Schematic/image crops for review decks | Pillow: `python3 -m pip install -r requirements-pptx.txt` |
-| Skill structure validation | PyYAML and the Codex `quick_validate.py`; run `python3 scripts/validate_skill.py` |
-| PADS automated schematic/netlist export | PADS on Windows; otherwise follow the manual export guide |
-
-Distributor availability and lifecycle checks require network access to the relevant distributor pages, or a dated user-provided export. Do not substitute remembered stock data.
+CI is tested on Python 3.11. Local runs on newer CPython 3.x are fine for the stdlib scripts. PCB layout tools are not part of the review contract.
 
 ## Verify
 
@@ -47,11 +48,27 @@ Distributor availability and lifecycle checks require network access to the rele
 python3 tests/test_ee_review.py
 ```
 
-In an environment with PyYAML and the Codex validator available:
+With a venv that has PyYAML (and the Codex validator available):
 
 ```bash
-python3 scripts/validate_skill.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-validation.txt
+.venv/bin/python scripts/validate_skill.py
 ```
+
+Acceptance baseline (desensitized KiCad XML netlist + BOM + HTML/PPT):
+
+```bash
+python3 scripts/parse_kicad_netlist.py examples/acceptance-demo/demo_board.xml
+python3 scripts/generate_report.py \
+  examples/acceptance-demo/ee-review/review.json \
+  examples/acceptance-demo/ee-review/DEMO_design_review_20261103.html
+python3 scripts/generate_pptx.py \
+  examples/acceptance-demo/ee-review/deck.json \
+  -o examples/acceptance-demo/ee-review/DEMO_design_review_20261103.pptx
+```
+
+See [examples/acceptance-demo/README.md](examples/acceptance-demo/README.md).
 
 ## Sharing and licensing
 

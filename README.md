@@ -40,15 +40,20 @@ Do not install only `SKILL.md`. The review commands and checklists live under `s
 | PyYAML + Codex `quick_validate.py` | Optional (maintainers) | `python3 scripts/validate_skill.py` only. Prefer a venv: `python3 -m venv .venv && .venv/bin/pip install -r requirements-validation.txt` |
 | PADS on Windows | Optional | Automated PADS schematic/netlist export; otherwise use the manual export guide |
 
+**Everyday reviews do not need PyYAML.** System Python without PyYAML is fine for parsers, HTML, and PPT fill. Install PyYAML only when you run the maintainer validator.
+
 CI is tested on Python 3.11. Local runs on newer CPython 3.x are fine for the stdlib scripts. PCB layout tools are not part of the review contract.
+
+Version is the single-line [VERSION](VERSION) file; see [CHANGELOG.md](CHANGELOG.md). Current package: **0.3.0**.
 
 ## Verify
 
 ```bash
 python3 tests/test_ee_review.py
+python3 scripts/check_package_hygiene.py
 ```
 
-With a venv that has PyYAML (and the Codex validator available):
+With a venv that has PyYAML (and the Codex validator available) — **not required for day-to-day reviews**:
 
 ```bash
 python3 -m venv .venv
@@ -70,11 +75,31 @@ python3 scripts/generate_pptx.py \
 
 See [examples/acceptance-demo/README.md](examples/acceptance-demo/README.md).
 
+### WorkBuddy / Codex install smoke
+
+After linking or copying this folder to `~/.agents/skills/ee-review` (Windows:
+`%USERPROFILE%\.agents\skills\ee-review`):
+
+1. Confirm `~/.agents/skills/ee-review/SKILL.md` and `VERSION` are readable.
+2. Quit and relaunch WorkBuddy (or start a **new** agent session) so skills rediscover.
+3. Ask: `Review this schematic using the ee-review skill.` with a netlist or schematic attached.
+4. Confirm the agent loads `ee-review` (not a stale `schematic-review`) and does not ask to install PyYAML for the review itself.
+
+`scripts/smoke_workbuddy_install.sh` checks the install path structure; the host UI relaunch is still a one-time manual click.
+
 ## Sharing and licensing
 
 This repository is suitable for access-controlled **internal** sharing. Give colleagues read access to the repository, or distribute a copy of the skill directory using the installation steps above.
 
-The repository does **not** currently grant an open-source license. Do not publish it publicly or redistribute it outside the organization until the rights holder has approved a license and repository visibility. Before any broader release, re-check the bundled PPT template and reference material for company-specific ownership or distribution restrictions.
+See [LICENSE](LICENSE): proprietary / all rights reserved. Do not publish publicly or redistribute outside the organization until the rights holder grants a broader license and sets repository visibility. The bundled PPT template is desensitized for company name/logo traces; re-scan before any external drop.
+
+## Legacy scripts (not part of review)
+
+`scripts/convert_layout.py`, `pads_full_converter.py`, `pads_route_injector.py`,
+`pads_common.py`, `pads_export_all.bas`, and `pads_export.bat` are **legacy /
+not part of review**. New contributors should not run them during an ee-review
+session. Layout conversion docs in `references/file-preparation-guide.md` are
+offline helpers only.
 
 ## Scope
 

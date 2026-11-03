@@ -1,8 +1,12 @@
 ' ============================================================
+' LEGACY / NOT PART OF REVIEW
+' Layout-oriented export helper. ee-review does not grade PCB layout.
+' For reviews, prefer schematic / pin-level netlist / BOM exports.
+' ============================================================
 ' PADS Layout - One-Click Export Script
 ' ============================================================
-' Purpose: Export all files needed for EE Review skill
-'          (ASCII, Gerber via CAM, Netlist, BOM, Pick&Place)
+' Purpose: Legacy one-click export (ASCII, Gerber via CAM, Netlist,
+'          BOM, Pick&Place). Not required by the review workflow.
 '
 ' Usage:
 '   Method 1 - In PADS GUI:

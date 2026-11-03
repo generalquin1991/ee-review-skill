@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+LEGACY / NOT PART OF REVIEW.
+
+This PADS→KiCad layout injector is not part of the ee-review skill workflow.
+Do not run it during a schematic/netlist/BOM review to produce findings.
+
+---
+
 PADS ASCII Full Converter for KiCad
 
 Extends the route injector with:

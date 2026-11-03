@@ -59,6 +59,26 @@ A number, equation, recommended range, pin function, or limit that the verdict t
 
 Figures sit inside the template's existing picture frames. The command fits each picture to its own aspect ratio and centers it in that frame, so a tall crop is not stretched across the wide frame. Use one crop when one location carries the verdict: the schematic only around the parts named in the sentence, or a datasheet region with `--mark box`. Use two crops when the sentence depends on two places. A net that crosses boards gets one schematic crop per board: the I2C pins on board A, and the pull-up that sits on board B. Do not add a crop the sentence does not use. Do not crop PCB layout copper for a finding. A slide has two frames; further crops continue on the next slide with the same eyebrow and subtitle. A conclusion with no picture leaves the frame out; do not insert a placeholder icon.
 
+## Figure must support the sentence
+
+Before writing `deck.json` or accepting a generated slide, re-read the body and
+open every crop for that finding.
+
+1. Every reference, net, value, threshold, pin name, or path the body names must
+   appear in at least one crop on that finding, **or** the crop must make the
+   claimed absence visible (empty pad, missing series element, open net stub).
+2. If the picture shows a part the sentence says is missing — or shows a
+   different topology than the verdict — rewrite the sentence or recrop. Do not
+   ship both.
+3. A datasheet number, equation, recommended range, or pin function used in the
+   verdict must be inside the boxed datasheet crop, not only in the prose.
+4. Self-check: a reviewer who looks only at the pictures must be able to accept
+   or reject the sentence without trusting unseen context. If they cannot, the
+   slide fails this rule.
+
+This is a hard gate for PPT findings, not a style preference. HTML-only rows
+still follow the six-field contract; they do not get a contradictory slide.
+
 The text command keeps the template typeface and size. If the body does not fit, the command continues it on the next slide with the same eyebrow and subtitle. Do not shrink the type, and do not add a label that says the slide is a continuation.
 
 ## Where the picture comes from

@@ -30,6 +30,16 @@ Do not review PCB layout geometry. Stackup, impedance, return path, copper width
 
 Before a row that depends on a datasheet, save that PDF under `<project>/ee-review/datasheets/`. Name the file from the manufacturer part number. If the user already supplied the PDF, copy it there and cite that copy. A browser page that was not saved is not the citation. If the PDF cannot be saved, the row is `not verifiable` and names the missing path. Stock and lifecycle stay on the distributor rule below; a datasheet PDF is not a stock quote.
 
+## PPT figure consistency
+
+When a finding becomes a slide, the body and the crops are one claim. Every
+part, net, value, threshold, or absence named in the sentence must be visible in
+that finding's figure(s), or the figure must show the absence. A crop that
+contradicts the sentence (for example a series MOSFET visible while the text
+says it is missing) fails the review: fix the text or the crop before the deck
+is delivered. Full procedure: `references/ppt-style.md` § Figure must support the
+sentence.
+
 ## Review output folder
 
 Every file this review writes goes in `<project>/ee-review/`, next to the schematic or netlist. That includes the `.dot` sources, the rendered `.svg` and `.png`, schematic and datasheet crops, `deck.json`, the HTML report, and the PPT. Datasheet PDFs go in `ee-review/datasheets/`. Leave the design sources where the user put them.

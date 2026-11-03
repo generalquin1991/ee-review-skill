@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+LEGACY / NOT PART OF REVIEW.
+
+Layout route injection is outside the ee-review skill contract. Do not run this
+during a schematic/netlist/BOM review.
+
+---
+
 PADS ASCII Route Extractor & KiCad Segment Injector
 
 Parses the *ROUTE* section of a PADS PowerPCB ASCII file, extracts all routing

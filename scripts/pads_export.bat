@@ -1,10 +1,13 @@
 @echo off
 REM ============================================================
+REM LEGACY / NOT PART OF REVIEW
+REM Layout export helper only. ee-review does not grade PCB layout.
+REM Prefer schematic / pin-level netlist / BOM exports for reviews.
+REM ============================================================
 REM PADS Layout - Automated Export Batch File
 REM ============================================================
 REM Purpose: Launch PADS Layout, open a PCB file, and run the
-REM          export script to generate all files needed for
-REM          EE Review skill processing.
+REM          export script (legacy helper; not the review path).
 REM
 REM Usage:
 REM   pads_export.bat "C:\path\to\your_board.pcb"

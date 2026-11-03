@@ -212,11 +212,12 @@ class SkillCoverageTests(unittest.TestCase):
     def test_ppt_cover_identity_requires_current_user_confirmation(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         ppt_style = (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8")
-        for text in (skill, ppt_style):
-            self.assertIn("explicitly ask the user to confirm", text)
-            self.assertIn("even when", text)
-            self.assertIn("already supplied in the current request", text)
-            self.assertIn("never silently reuse", text)
+        self.assertIn("Confirm cover", skill)
+        self.assertIn("references/ppt-style.md", skill)
+        self.assertIn("explicitly ask the user to confirm", ppt_style)
+        self.assertIn("even when", ppt_style)
+        self.assertIn("already supplied in the current request", ppt_style)
+        self.assertIn("never silently reuse", ppt_style)
 
     def test_conditional_matrix_is_linked_and_covers_requested_features(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -332,6 +333,7 @@ class DeckCommandTests(unittest.TestCase):
         import zipfile
 
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        ppt_style = (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8")
         with zipfile.ZipFile(ROOT / "assets" / "review-slide-template.pptx") as archive:
             cover = archive.read("ppt/slides/slide1.xml").decode("utf-8")
             layout = archive.read("ppt/slideLayouts/slideLayout5.xml").decode("utf-8")
@@ -345,8 +347,9 @@ class DeckCommandTests(unittest.TestCase):
         self.assertIn('sz="1800"', slide)
         self.assertIn("scripts/generate_pptx.py", skill)
         self.assertIn("scripts/crop_schematic.py", skill)
-        self.assertIn("one-off script", skill)
-        self.assertIn("not verifiable", (ROOT / "references" / "ppt-style.md").read_text(encoding="utf-8"))
+        self.assertIn("one-off script", ppt_style)
+        self.assertIn("Figure must support the sentence", ppt_style)
+        self.assertIn("not verifiable", ppt_style)
 
     def test_deck_keeps_template_font(self):
         import zipfile
@@ -675,6 +678,30 @@ class DeckCommandTests(unittest.TestCase):
         self.assertNotIn("R", positions)
         box = crop_schematic.crop_box_mm(positions["R35"], 25, (297.0, 210.0))
         self.assertEqual(box, (75.0, 15.0, 125.0, 65.0))
+
+
+class PackageHygieneTests(unittest.TestCase):
+    def test_version_matches_changelog_and_license_exists(self):
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+        self.assertIn(f"## {version}", changelog)
+        self.assertTrue((ROOT / "LICENSE").is_file())
+
+    def test_skill_md_under_size_budget(self):
+        size = (ROOT / "SKILL.md").stat().st_size
+        self.assertLessEqual(size, 24_000)
+
+    def test_ppt_template_has_no_company_brand_bytes(self):
+        import zipfile
+
+        needles = [b"Agi" + b"lian", b"Sof" + b"east", b"AGI" + b"LIAN"]
+        pptx = ROOT / "assets" / "review-slide-template.pptx"
+        with zipfile.ZipFile(pptx) as zf:
+            for name in zf.namelist():
+                data = zf.read(name)
+                for needle in needles:
+                    self.assertNotIn(needle, data, msg=name)
 
 
 if __name__ == "__main__":

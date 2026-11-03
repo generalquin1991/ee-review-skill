@@ -3,508 +3,135 @@ name: ee-review
 description: "Use for hardware design file reviews whenever the user asks to review, audit, or check an electronic design. Covers schematics, netlists, and BOMs, including PADS ASCII .asc netlist exports, PADS/TARGET .tel/.net/.dsn netlists, KiCad/Altium sources, and schematic PDFs. Does not review PCB layout, Gerbers, or board geometry. Reviews power, signal integrity, protection, safety, EMC, thermal, DFM, low-power, firmware-hardware co-verification, and sourcing. Missing evidence stays not verifiable; connectivity claims require parser-backed evidence."
 ---
 
-# EE Review - Electronics Engineering Design Review
+# EE Review
 
-## Overview
+Evidence-based schematic / netlist / BOM review. Output: HTML report; optional PPT when asked.
 
-Perform comprehensive, professional, and in-depth review of hardware design artifacts including schematics (PDF or netlist) and BOM documents. Produce a structured HTML report with hierarchical review dimensions, S/A/B/C/D grading, risk-level marking, and actionable recommendations.
+**PCB layout review is out of scope.** Do not grade `.kicad_pcb`, Gerbers, or board geometry. See `references/pcb-review.md`.
 
-PCB layout review is out of scope. Do not review `.kicad_pcb`, Gerber sets, or other board geometry files for stackup, routing, impedance, return path, copper current, mask, paste, or placement. If the user asks for a layout review, say so and continue with schematic/netlist/BOM work when those files are present.
+Details live under `references/`. Read those files when a step applies; do not invent a parallel checklist in chat.
 
-## Skill Validation Preflight
+## When to use
 
-When validating or packaging this skill, run the bundled wrapper before the system validator:
+Activate for schematic, netlist, or BOM review / audit / check (审核 / 评审 / 检查). Do not open a layout-review path for board or Gerber files.
 
-    python3 scripts/validate_skill.py
-
-The wrapper checks that PyYAML is installed before invoking Codex's quick_validate.py. If it is missing, validation stops with an install command and a non-zero exit code; do not report the skill as validated. Install the validation-only dependency with either python3 -m pip install PyYAML or python3 -m pip install -r requirements-validation.txt.
-
-PyYAML is required for skill structure validation only. Normal EE design reviews use the standard-library scripts in this folder and do not require PyYAML.
-
-## When to Use This Skill
-
-Activate this skill when the user requests any of the following:
-- Schematic review (原理图审核) - PDF schematics, netlist files, design files
-- BOM audit (BOM审核) - Bill of materials in CSV/XLSX/PDF format
-- Full hardware design review (硬件设计评审) of schematic/netlist/BOM scope
-- Keywords: "review", "audit", "check", "审核", "评审", "检查" combined with "schematic", "BOM", "原理图", "物料清单", "网表"
-
-Do not activate a PCB layout review path for Gerber, `.kicad_pcb`, or other board files. Those inputs are out of scope; tell the user and keep the review on schematic/netlist/BOM evidence.
-
-## Review Workflow
-
-### Step 1: Input Classification
-
-Analyze the provided files to determine the review scope:
-
-| Input File Type | Detected Extension | Review Scope |
-|----------------|-------------------|-------------|
-| Schematic PDF | .pdf (containing circuit diagrams) | Schematic review |
-| Schematic source (KiCad / Altium / others) | .kicad_sch, .sch, .schdoc, .PrjPcb | Schematic review — use the native source parser first. KiCad: export kicadxml and parse it; Altium: use `altium-monkey` on the `.PrjPcb` project when available, or on an individual `.SchDoc` only for sheet-local inspection. |
-| Netlist (KiCad XML / TARGET / PADS) | .xml (kicadxml), .tel, .net, .dsn, or PADS/EasyEDA `.asc` containing `*PART*`, `*NET*`, `*SIGNAL*` | Schematic/netlist electrical review. Route by file structure and use the format-specific parser. |
-| KiCad / Altium / PADS / Eagle / Cadstar PCB layout | .kicad_pcb, .PcbDoc, layout `.asc` with `*ROUTE*` / `*PARTDECAL*`, .brd, Cadstar .pcb | Out of scope. Do not convert or review for layout findings. |
-| Gerber set | .gbr, .gerber, .gbl, .gtl, etc. | Out of scope. Do not review board geometry. |
-| BOM | .csv, .xlsx, .xls, .pdf (containing BOM table) | BOM review |
-| Multiple files | Combination | Combined schematic/netlist/BOM review only; ignore layout files for findings |
-
-To classify input:
-1. Check file content as well as extension. A PADS `.asc` containing `*PART*`, `*NET*`, and `*SIGNAL*` is a pin-level netlist export, not a PCB layout; a layout `.asc` contains board geometry/routing sections and is out of scope for this skill.
-2. If PDF, scan for schematic symbols, net labels, component values, or BOM tables.
-3. If ambiguous, ask the user to clarify the file type.
-4. Determine which schematic/netlist/BOM dimensions apply. Do not open a PCB layout dimension.
-
-### Step 1.5: PCB layout files (out of scope)
-
-If the user supplies only a board layout or Gerber set, say that PCB layout review is out of scope and ask for a schematic, netlist, or BOM if they want an electrical or procurement review. Do not run `convert_layout.py` or invent stackup/routing findings to fill the report. Layout conversion scripts may remain in the repo for other uses; they are not part of this review workflow.
-
-### Step 1.8: Architecture diagrams
-
-A multi-board design requires the system block diagram in `references/architecture-diagrams.md`. Do not ask to skip it. Show each board and the nets that cross between them.
-
-A battery product requires the power tree. Do not ask to skip it. After a power tree exists, and also when there is no battery, review every regulator against source sag in `references/schematic-review.md`. Any load with a cited peak on the same upstream node pulls that node down. The node may be a cell, VBUS, an adapter, a cable, or an intermediate rail. The regulator's own load can be microamps.
-
-For a single board, decide separately whether the system block diagram and the power tree are worth drawing. Draw one when the topology would change a finding: more than one power stage, more than one functional module, or a conclusion that depends on which rail or block feeds another. A single regulator feeding one IC, or a diagram the user already supplied, does not need a new drawing. The power tree of a non-battery design follows this rule even when there are several boards.
-
-If you decide a single-board diagram is not needed, ask the user before skipping it. Do not mark that coverage row `not applicable` until they confirm. If they say to draw it, draw it.
-
-BOM-only, Gerber-only, or a PCB with neither schematic nor netlist: do not invent a diagram from the parts list. Ask the user. If they want the drawing, ask for a schematic or a netlist first. After they confirm a skip, or when there is still nothing to draw from, evidence is `no schematic or netlist in this review`.
-
-When a diagram is needed and its `.dot` file is missing, that coverage row is `not verifiable` and Power Supply Design gets a warning that names the missing path.
-
-1. **System block diagram** — `ee-review/<project>_system_block_diagram.dot`. Top-level functional blocks only, arranged in layers, connected by **net-label edges** (the net/signal name on each edge). NO pins, NO internal circuitry, NO component-level detail — it is a block diagram, not a schematic.
-2. **Power tree** — `ee-review/<project>_power_tree.dot`. Power source -> regulator/PMIC -> output rails -> major loads, each edge/block annotated with rail voltage and typical current. NO schematic-level detail (no decoupling caps, no feedback networks).
-
-Render both to PNG and SVG with Graphviz `dot`:
-```bash
-dot -Tpng -o ee-review/<project>_system_block_diagram.png ee-review/<project>_system_block_diagram.dot
-dot -Tsvg -o ee-review/<project>_system_block_diagram.svg ee-review/<project>_system_block_diagram.dot
-# (repeat for ee-review/<project>_power_tree)
-```
-
-**Placement:** every file this review writes goes in `<project>/ee-review/`, next to the schematic or netlist. That covers the diagrams, crops, `deck.json`, the HTML report, and the PPT. Datasheets cited by a finding are PDFs in `ee-review/datasheets/`, saved before the finding is written. A page left only in the browser is not a citation. When a diagram is drawn, the coverage table cites that path. When the user confirmed a skip, the row is `not applicable`.
-
-### Step 2: Load Reference Checklists
-
-Based on detected review scope, load the appropriate reference documents:
-
-- **Review contract**: Read `references/review-contract.md` for every review. It defines the six-field checklist row, the `not verifiable` rule, the canonical-parser connectivity gate, distributor evidence, when diagrams are required, and the single grade cap.
-- **Schematic review**: Read `references/schematic-review.md` and `references/netlist-verification.md` (the latter is mandatory whenever the input includes a netlist — it governs how connection claims must be proven)
-- **Altium source review**: Read `references/altium-monkey.md` whenever `.PrjPcb` or `.SchDoc` files are present. It defines the project-level compile path and the evidence required for source connectivity claims.
-- **PCB layout (out of scope)**: Read `references/pcb-review.md` only to confirm layout review is refused. Do not apply layout checklists.
-- **BOM review**: Read `references/bom-review.md`
-- **Standards reference**: Read `references/standards-reference.md` (always load for cross-referencing)
-- **Architecture diagrams**: Read `references/architecture-diagrams.md` when Step 1.8 applies.
-- **Mandatory and conditional checks**: Read `references/conditional-review.md` for every review. It defines the evidence gate, all-case ESD review, and feature-triggered checks for batteries, antennas, USB-C, 4G, motors, and CERE/project power baselines.
-
-These reference files contain the checks for the detected scope. Apply each matching row. A row you cannot prove from a file in this review stays `not verifiable`.
-
-### Step 2.5: Mandatory Coverage Gate
-
-Before writing findings, determine whether the design contains a battery,
-antenna/RF port, USB-C, 4G/cellular modem, motor/inductive load, or a
-project-specific CERE requirement. Apply every matching conditional checklist.
-Record each checklist row with the six fields in `references/review-contract.md`.
-Regardless of detected features, also record the IC power/ground-pin audit, ESD, low-power, EMC, electrical safety,
-thermal, DFM/DFT, firmware-hardware co-verification, component availability, and the
-project power baseline. When resistors or capacitors are present, also record the
-E96 resistor check and the capacitor voltage-rating plus DC-bias check. When an
-MCU or SoC is present, record its minimum-system check against that part's
-datasheet figure. When logic pins share a net, record the IO-level check. When a
-charger is present, record whether charging starts with no firmware, whether
-the running load is on a power-path pin separate from the cell, and whether the
-cell can reach termination. When the charger supports a power path, separately
-trace system loads to VSYS/SYS or VBAT/BAT and assess system stability during
-precharge/trickle and charge-state transitions; do not assume that a VBAT-fed
-system load is safe or stable. If datasheet limits do not establish margin,
-require measured VSYS/VBAT waveforms under relevant worst-case conditions. If
-the cell connector has no protection IC on this board, ask whether the pack has
-a protection board and a PTC before treating the cell as protected. Each I2C
-bus gets an address list. Clocks toward memory, a display, a camera, or another
-hard-to-rework interface get the rework-footprint check, and a net whose
-datasheet shows source or end termination gets that check. When a footprint or symbol pin map is assigned to an IC, connector, transistor, or other part with a pin table, record the footprint pin name and number check in `references/schematic-review.md`. That check is one slide listing every part whose pin table was opened. It is not a PCB layout review. A substitute for a
-key part stays out of the report until the user confirms that exact part.
-
-When an MCU/SoC maintains a power latch or shutdown depends on its GPIO, record
-the MCU-held power-latch shutdown row in `references/schematic-review.md`;
-otherwise mark that conditional check `not applicable` with the trigger evidence.
-
-When an open-drain or open-collector output is present, record the output's
-`VOL`, `IOL`, `ILKG`, `VIH/VIL`, pull-up current, high-state voltage loss, edge
-timing, and sleep/reset/ship/off-state behavior. Do not treat an OD/OC output as
-automatically acceptable in a low-power design.
-
-When an MCU/SoC GPIO or firmware-controlled signal maintains a power latch,
-record the MCU-held power-latch shutdown check from
-`references/schematic-review.md`. Verify BOR/reset GPIO behavior and the
-hold-path release timing during rail collapse; do not assume that BOR forces
-the output low. Include the shutdown sequence and measured waveform when
-datasheet limits alone do not establish margin.
-
-BOM SKU standardization is mandatory for every review. Use a supplied BOM as the
-authority and reconcile it to the design source. If no BOM is supplied but the
-schematic/netlist contains structured part attributes, first reconstruct a
-review-only reference-level BOM and SKU summary using
-`scripts/reconstruct_bom_from_pads_ascii.py` for PADS/EasyEDA `*MISC* ATTRIBUTE VALUES`
-exports, or equivalent structured source data. Clearly label it as
-reconstructed, preserve include/exclude/unspecified assembly status, distinguish
-explicit MPNs from unverified device identifiers, and list missing purchasing
-fields. Continue the SKU, MPN-completeness, and passive-consolidation checks from
-that inventory. Only use `not verifiable` when neither a BOM nor recoverable
-component data exists; stock, lifecycle, and orderability still require their
-separate dated distributor evidence. Do not present a reconstructed inventory as
-an approved procurement BOM or turn optional consolidation into an electrical
-defect. See `references/bom-review.md`.
-
-Status is `confirmed`, `finding`, `not applicable`, or `not verifiable`.
-`confirmed` cites the evidence file. If the evidence is missing, status is
-`not verifiable` and the row names the missing file. Do not add a finding or a
-confirmed row whose text is only "checked", "reviewed", or "已检查".
-
-System block diagram and power tree follow Step 1.8. A multi-board design
-requires the system block diagram. A battery product requires the power tree
-and the source-sag review in `references/schematic-review.md`, which also applies when there is no battery. Any other diagram is drawn when the topology
-would change a finding, and you ask the user before skipping one you think is
-unnecessary. Availability follows the distributor rule in
-the review contract: no fetched page and no dated user export means
-`not verifiable`, not a stock number from memory.
-
-A connectivity finding is Critical only with a successful canonical-parser lookup
-quoted in the finding: `TelNetlist`, clean-sanity `PadsAsciiNetlist`, `KicadNetlist`, or an `altium-monkey`
-compiled-project lookup that passes its diagnostic/completeness gate. PDF-only
-or unsupported-source connectivity stays at major.
-
-### Step 3: Execute Review
-
-For each applicable review dimension, systematically evaluate the design:
-
-1. **Parse the input files** - Extract component lists, net connections, design rules, and structural information.
-   - **If the input is a netlist or native schematic source you MUST parse it with a real parser — never hand-roll line-prefix regex or infer connectivity from PDF coordinates.** Route by source format:
-     - **KiCad** (`.kicad_sch` / `.sch` / `.schdoc`): export the netlist as XML first — `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch` — then parse with `scripts/parse_kicad_netlist.py` (the `KicadNetlist` class). `KicadNetlist` wraps KiCad's own `kicad_netlist_reader`, so every pin→net fact comes from KiCad's native parser. **Do NOT** feed the default `kicadsexpr` (S-expression) export to either parser — it is not XML and will silently yield 0 nets.
-     - **Altium** (`.PrjPcb` with child `.SchDoc` files): install/use the pinned `altium-monkey` version, load the project with `AltiumDesign.from_prjpcb(...)`, and compile with `design.compile(force=True)`. Use the compiled design's `nets` and each net's `terminals`/`endpoints` for pin→net evidence only after the Altium completeness/diagnostic gate passes. Do not infer cross-sheet connectivity from raw OLE records, `strings`, SVG/PDF geometry, or component coordinates. See `references/altium-monkey.md`.
-     - **Altium sheet only** (`.SchDoc` without a project): `AltiumSchDoc` may be used for component/pin/object inspection, but it does not prove project-level cross-sheet connectivity. Keep such claims `not verifiable` unless a native compiled netlist or exported pin-level netlist is supplied.
-     - **TARGET / PADS-style** (`.tel` / `.net` / `.dsn` with `$NETS`/`$PACKAGES`): parse with `scripts/parse_netlist.py` (the `TelNetlist` class). This parser is continuation-aware and builds `pin->net` / `net->pins` indexes via reverse lookup.
-     - **PADS / EasyEDA ASCII netlist** (`.asc` with `*PART*`, `*NET*`, and `*SIGNAL*`): parse with `scripts/parse_pads_ascii_netlist.py` (`PadsAsciiNetlist`). Run its `sanity()` gate and resolve every finding with `pin_net`, `net_pins`, or `component_pins`. This is distinct from a PADS PCB-layout `.asc`.
-     Long nets span multiple physical lines and a prefix scan will silently drop continuation pins, producing false "pin missing / device unpowered" findings. See `references/netlist-verification.md` for the mandatory verification discipline and real failure-mode examples.
-   - Any claim that a pin is connected, miswired, or **not connected** must be proven by a format-specific parser lookup: `TelNetlist`, `PadsAsciiNetlist`, `KicadNetlist`, or the `altium-monkey` compiled design model after its diagnostic/completeness gate passes. A "device not connected" claim requires a full component/pin lookup or compiled-net terminal search to confirm the pin is absent across the entire design. Quote the exact parser/version, source/project path, net name, reference, pin, compile summary, and diagnostics in the evidence.
-   - **Mandatory IC supply/return audit:** for every IC, enumerate every VDD/VCC/VIN/AVDD/IOVDD/VBAT and GND/VSS/AGND pin (including exposed pads) from that exact part's datasheet pin table and the schematic symbol. Trace each pin to its net using the parser, then validate the net's DC destination. A pin appearing in a net is not proof of valid power or ground: a ground pin on an unnamed net connected only through decoupling capacitors to supply rails is floating, not grounded. Pass only when every supply pin reaches its intended powered source/rail and every return pin reaches the intended DC return, with any split-ground exception justified by the datasheet/design. Record every IC in the audit table; missing pinout evidence is `not verifiable`, never an implicit pass. Read `references/schematic-review.md` and `references/netlist-verification.md` for the check.
-2. **Apply checklist items** - Go through each item in the reference checklist for the detected dimension.
-3. **Identify findings** - Record each issue found with:
-   - Severity level: `critical`, `major`, `minor`, or `okay`
-   - Title (concise summary)
-   - Description (detailed explanation of the issue)
-   - Location (sheet number, component reference, coordinate, or BOM line)
-   - Recommendation (specific action to fix)
-4. **Score the dimension** - Based on findings, assign a grade and score.
-
-### Step 4: Grade and Score
-
-Use one policy, from `references/review-contract.md`. `scripts/generate_report.py` applies the same cap when it renders the report.
-
-Score each dimension from 100. Deduct 15 per Critical, 5 per Major, 1 per Minor. Okay findings do not reduce the score. Floor at 0.
-
-| Score | Letter | Also required |
-|-------|--------|----------------|
-| 90–100 | S | zero Critical findings in that dimension |
-| 80–89 | A | zero Critical findings in that dimension |
-| 65–79 | B | zero Critical findings in that dimension |
-| 50–64 | C | |
-| < 50 | D | |
-
-After the score map, apply the cap:
-
-- Any Critical finding caps that dimension at C. A score below 50 stays D.
-- Any Critical finding anywhere, or any dimension letter D, caps the overall letter at C. A weighted overall score below 50 stays D.
-
-S, A, and B require zero Critical findings in that scope. One Critical is enough.
-
-Weighted overall score: Power, Signal Integrity, Protection, Safety, and Low-Power on a battery, portable, or power-constrained design use weight 1.5. Other dimensions use 1.0. Map the weighted score, then apply the cap.
-
-### Step 5: Generate Report
-
-Generate the final HTML report using the report generation script.
-
-#### 5.1 Prepare JSON Data
-
-Assemble review results into the following JSON structure (save as a temporary `.json` file):
-
-```json
-{
-    "project_name": "<project or file name>",
-    "review_date": "<YYYY-MM-DD>",
-    "reviewer": "EE Review Skill",
-    "input_files": ["<list of input file paths>"],
-    "overall_grade": "<S|A|B|C|D>",
-    "overall_summary": "<2-3 sentence overall assessment>",
-    "coverage": [
-        {
-            "check": "<system block diagram|power tree|ESD|battery|antenna|USB-C|4G|motor|low-power|emc|safety|thermal|dfm|firmware|availability|bom-sku-standardization|charger-system-load-rail|CERE>",
-            "trigger": "<feature trigger or expected evidence>",
-            "status": "<confirmed|finding|not applicable|not verifiable>",
-            "evidence": "<file/page, finding location, or reason unavailable>"
-        }
-    ],
-    "dimensions": [
-        {
-            "name": "<dimension name>",
-            "category": "<schematic|pcb|bom|general>",
-            "grade": "<S|A|B|C|D>",
-            "score": <number>,
-            "max_score": 100,
-            "findings": [
-                {
-                    "severity": "<critical|major|minor|okay>",
-                    "title": "<finding title>",
-                    "description": "<detailed description>",
-                    "location": "<sheet, component, or BOM line>",
-                    "recommendation": "<actionable fix>"
-                }
-            ]
-        }
-    ],
-    "summary": {
-        "total_findings": <number>,
-        "critical_count": <number>,
-        "warning_count": <number>,
-        "info_count": <number>,
-        "top_risks": ["<top risk 1>", "<top risk 2>", "..."],
-        "recommendations": ["<recommendation 1>", "<recommendation 2>", "..."]
-    }
-}
-
-    # -----------------------------------------------------------------------
-    # I2C MAP & TOPOLOGY (optional but recommended). generate_report.py's
-    # render_i2c_map / render_i2c_topology consume these; if omitted the report
-    # simply skips the I2C section. Use one entry per I2C bus segment.
-    "i2c_map": {
-        "tree": [
-            {
-                "kind": "controller",        # controller | device
-                "label": "ESP32-S3 (master)",
-                "ref": "U1",
-                "type": "uC",
-                "addr": null,                 # null for controllers
-                "role": "master",             # master | slave
-                "children": [
-                    {
-                        "kind": "device",
-                        "label": "BQ25120A charger",
-                        "ref": "U5",
-                        "type": "pmic",
-                        "addr": "0x6A",
-                        "role": "slave",
-                        "children": []
-                    }
-                ]
-            }
-        ]
-    },
-    "i2c_topology": {
-        "controllers": [
-            {
-                "id": "I2C0",
-                "label": "ESP32-S3 I2C0",
-                "pins": "GPIO8/9 (SCL/SDA)",
-                "shared": false,              # true if >1 controller drives the same bus
-                "nodes": [
-                    {"ref": "U5", "addr": "0x6A", "role": "slave"},
-                    {"ref": "U6", "addr": "0x48", "role": "slave"}
-                ]
-            }
-        ],
-        "pullups": [                          # where are the bus pull-ups?
-            {"net": "SCL", "ref": "R22", "to": "3V3"},
-            {"net": "SDA", "ref": "R23", "to": "3V3"}
-        ]
-    }
-}
-```
-
-#### 5.2 Run Report Generator
-
-Execute the report generation script:
+## Validation (maintainers only)
 
 ```bash
-python3 scripts/generate_report.py <input.json> ee-review/<output_report.html>
+.venv/bin/python scripts/validate_skill.py
 ```
 
-The script generates a styled HTML report with:
-- Overall grade circle (S/A/B/C/D)
-- Summary statistics (total findings, critical/warning/info counts)
-- Radar chart showing dimension scores
-- Bar chart showing findings distribution
-- Top risks and key recommendations sections
-- Dimension-by-dimension detail cards with findings list
+PyYAML is required **only** for this structural check. Everyday reviews use stdlib scripts and do **not** need PyYAML. See README.
 
-#### 5.3 Present Report
+## Workflow
 
-Return the generated HTML path to the user so it can be opened or previewed by the host environment.
+### 1. Classify inputs
 
-#### 5.4 Design review deck
+| Input | Scope |
+| --- | --- |
+| Schematic PDF / KiCad / Altium / other schematic source | Schematic review |
+| Netlist: KiCad XML, TARGET `.tel`/`.net`/`.dsn`, PADS/EasyEDA `*PART*`/`*NET*`/`*SIGNAL*` `.asc` | Electrical / connectivity (format-specific parser) |
+| BOM CSV/XLSX/PDF | BOM review |
+| `.kicad_pcb`, Gerber, layout `.asc` with routes, `.PcbDoc` board, etc. | **Out of scope** — say so; do not convert for findings |
 
-When the user asks for the review PPT, DFM deck, or the same slide style, read `references/ppt-style.md` and produce the deck only with these commands:
+Content beats extension. A `*SIGNAL*` `.asc` is a netlist; a `*ROUTE*` `.asc` is layout and out of scope.
+
+Do **not** run `scripts/convert_layout.py` or the PADS layout injectors as part of this review. They are **legacy / not part of review**.
+
+### 2. Contract + checklists
+
+Always read `references/review-contract.md` (six fields, `not verifiable`, connectivity gate, distributor rule, grade cap).
+
+Then load only what applies:
+
+| Need | File |
+| --- | --- |
+| Schematic rows | `references/schematic-review.md` |
+| Any netlist / pin claim | `references/netlist-verification.md` |
+| Altium `.PrjPcb` / `.SchDoc` | `references/altium-monkey.md` |
+| BOM / SKU | `references/bom-review.md` |
+| Coverage gate / feature triggers | `references/conditional-review.md` |
+| Block / power diagrams | `references/architecture-diagrams.md` |
+| PPT | `references/ppt-style.md` |
+| Standards citations | `references/standards-reference.md` |
+| Export help | `references/file-preparation-guide.md` |
+
+Apply matching rows. Unprovable → `not verifiable`. Forbidden filler: "checked" / "已检查".
+
+Coverage, ESD, battery, USB-C, antenna, motor, CERE, E96, MCU minimum system, IO levels, charger/power-path, I2C map, clock rework footprints, termination, footprint pin-name check, and BOM SKU rules are defined in `conditional-review.md` and the schematic/BOM refs — execute them there, not from memory.
+
+### 3. Diagrams
+
+Rules: `references/architecture-diagrams.md` + review-contract architecture section.
+
+- Multi-board → system block diagram required.
+- Battery → power tree required; source-sag still applies without a battery.
+- Single-board → draw when topology would change a finding; ask before skipping.
+- Write under `<project>/ee-review/`. Datasheets cited by findings → `ee-review/datasheets/`.
+
+### 4. Execute review
+
+Parse with the real format parser — never hand-rolled line-prefix regex for connectivity:
+
+| Source | Parser |
+| --- | --- |
+| KiCad | `kicad-cli sch export netlist --format kicadxml` → `scripts/parse_kicad_netlist.py` |
+| TARGET/PADS text | `scripts/parse_netlist.py` (`TelNetlist`) |
+| PADS/EasyEDA ASCII netlist | `scripts/parse_pads_ascii_netlist.py` (+ `sanity()`) |
+| Altium project | `altium-monkey` compile path in `references/altium-monkey.md` |
+
+Critical connectivity requires a successful canonical lookup quoted in the finding. PDF-only / unsupported source → at most `major`. IC supply/return audit: every VDD/GND-class pin from that part's datasheet, traced to a valid DC source/return — presence on a capacitor-only net is not ground.
+
+Score and grade with the single policy in `references/review-contract.md` (same cap as `scripts/generate_report.py`).
+
+### 5. Report and optional PPT
+
+Assemble JSON → `python3 scripts/generate_report.py <review.json> ee-review/<report.html>`.
+
+Field shapes: follow `examples/acceptance-demo/ee-review/review.json` and the script's expectations. Include the coverage table from the conditional gate.
+
+When the user asks for a deck, read `references/ppt-style.md` and use **only**:
 
 ```bash
-python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png
-python3 scripts/crop_schematic.py --image <page.png> --box <left,top,right,bottom> -o ee-review/<crop>.png --mark box
-python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx
+python3 scripts/crop_schematic.py ...
+python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<code>_design_review_<YYYYMMDD>.pptx
 ```
 
-Do not assemble the PPT with python-pptx, hand-edited slide XML, a copied template, or a one-off script written during the review. If the command cannot express the layout, change the script in this skill and run it again.
+Confirm cover `designer` / `reviewer` (and show `project_code`, `review_date`) before writing the PPT unless the current request already named them.
 
-A slide needs a location (reference, net, or datasheet row) and a verdict, including an explicit accept. `not verifiable`, missing files, the coverage table, and S/A/B/C grades stay in the HTML report. The one-line summary is the existing subtitle, at most 60 characters. A longer line is rejected so it does not wrap, and it is not repeated in a second placeholder. `severity` colors that line: `critical` red, `major` yellow, `minor` black, `okay` green. Do not write those words in the sentence. When the verdict uses a datasheet equation, table, recommended range, or pin function, one picture is a boxed crop of that region from `ee-review/datasheets/`. A page number in the sentence does not replace the crop.
+**Figure ↔ sentence:** every part, net, value, threshold, or absence named in the body must be visible in that finding's crop(s), or the crop must show the claimed absence. If the picture contradicts the sentence, rewrite the sentence or recrop before shipping the slide. Details: `references/ppt-style.md` and `references/review-contract.md`.
 
-Before EMC or safety findings, decide which phenomena apply from the schematic and from the PRD if one was provided. The rule is in `references/conditional-review.md` under EMC and safety applicability. Do not write that choice into the HTML narrative or the PPT. Do review the schematic against it: cable filters on USB and HDMI, power-entry filters, and DNP footprints where a filter is not yet fitted. A TVS alone is not that filter. Findings name the connector, the nets, and whether the filter is populated, DNP, or missing.
+## Severity
 
-KiCad schematics use the installed `kicad-cli` (also `/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli` when it is not on `PATH`) and `scripts/parse_kicad_netlist.py`. TARGET `.tel`/`.net`/`.dsn` files use `scripts/parse_netlist.py`; PADS/EasyEDA `*SIGNAL*` ASCII exports use `scripts/parse_pads_ascii_netlist.py`. Altium projects use `altium-monkey` first; KiCad import is only a fallback for visualization or when the native parser cannot load the source. Do not convert or review PCB layout files as part of this skill. If an Altium project cannot be compiled by `altium-monkey`, record the diagnostics and ask for an exported pin-level netlist before asserting connectivity findings. Do not write an ad-hoc parser for that review. If the schematic cannot be plotted, ask for a PDF and crop that.
+| Level | Meaning |
+| --- | --- |
+| critical | Will fail or unsafe / reliability break — must fix |
+| major | Elevated risk — strongly fix |
+| minor | Optional improvement |
+| okay | Evidence supports accept |
 
-Before generating or modifying a review PPT, explicitly ask the user to confirm the cover's `designer` and `reviewer` names. This confirmation is mandatory even when a title block, an existing `deck.json`, or an older deck provides a plausible identity. Present the proposed `project_code`, `designer`, `reviewer`, and `review_date` and wait for confirmation before writing `deck.json` or the PPT. Use the user's exact names, never silently reuse an identity from an older deck, and use today's date as `YYYYMMDD`. When names are already supplied in the current request, treat that as the confirmation and do not ask again.
+PPT subtitle colors: critical red, major yellow, minor black, okay green — do not write those words in the sentence.
 
-## Review Dimensions
+## Dimensions (index)
 
-### Schematic Review Dimensions
+Schematic: Power, SI, Protection, Logic, DRC, Low-Power, Safety, DFM/DFT, Firmware-HW — see `schematic-review.md`.  
+BOM: availability, second source, SKU standardization, MPN, parameters, package, cost — see `bom-review.md`.  
+PCB layout dimension: never.
 
-When schematic files are detected, apply these review dimensions (see `references/schematic-review.md` for detailed checklists):
+## Commands (review path)
 
-1. **Power Supply Design** - Power tree, decoupling, regulation, protection, sequencing, margin analysis.
-2. **Signal Integrity** - High-speed termination, clock design, bus interfaces, level shifting.
-3. **Protection Circuits** - ESD protection, over-voltage/over-current, isolation.
-4. **Circuit Logic & Correctness** - Functional verification, feedback loops, timing, component values.
-5. **Design Rule Checks** - Netlist consistency, connector pinout, documentation.
-6. **Low-Power Design** - Sleep/standby current budget, leakage (floating/unused pins, pull-resistor choice), power-gated domains and off-state isolation, MCU-held power-latch shutdown through BOR/reset and rail collapse, regulator quiescent current / light-load efficiency, always-on domain minimization, RTC/backup domain, ship/storage mode. Mandatory for battery/portable/always-on designs and weighted 1.5x there. See `references/conditional-review.md` (Low-Power Design trigger) and `references/schematic-review.md` §6.
-7. **Safety (Electrical)** - Creepage/clearance, isolation barriers, over-voltage/current protection against the accessible-voltage class, and Li-Po battery safety (thermal runaway, over-charge/discharge, short, reverse, ship mode). See `references/schematic-review.md` §8 and `references/conditional-review.md` (Safety trigger).
-8. **DFM/DFT** - Test points, programming/debug headers, ICT access, panelization, process margins. See `references/schematic-review.md` §9 and `references/conditional-review.md` (DFM/DFT trigger).
-9. **Firmware-HW Co-Verification** - Hardware whose enable/configuration depends on firmware (chargers, load switches, boost, PMIC, or MCU-held power latch) must have startup and shutdown sequences specified and cross-checked, including power release before MCU BOR/reset makes GPIO behavior uncertain; "works only after FW runs" is a finding, not an assumption. See `references/schematic-review.md` §10.
+| Script | Role |
+| --- | --- |
+| `parse_kicad_netlist.py` / `parse_netlist.py` / `parse_pads_ascii_netlist.py` | Mandatory connectivity parsers |
+| `reconstruct_bom_from_pads_ascii.py` | Review-only BOM from PADS attributes |
+| `generate_report.py` | HTML report |
+| `crop_schematic.py` / `generate_pptx.py` | PPT figures and deck |
+| `validate_skill.py` | Maintainer skill structure check (needs PyYAML + Codex validator) |
 
-For battery designs, Power Supply Design must include temperature protection,
-charge/discharge limits, and usable-energy analysis, Low-Power Design must
-quantify the sleep/standby budget against the cell capacity, and Electrical
-Safety must cover the Li-Po cell's thermal-runaway, over-charge/discharge, short,
-reverse-polarity, and ship-mode protection. For 4G and motor designs, Power
-Supply Design must include peak/inrush transient stability. For projects naming
-CERE or another internal baseline, map the measured design against that
-controlled requirement and mark missing evidence explicitly.
+**Legacy / not part of review:** `convert_layout.py`, `pads_full_converter.py`, `pads_route_injector.py`, `pads_common.py`, `pads_export_all.bas`, `pads_export.bat`. Do not run them to produce review findings.
 
-### PCB Layout Review Dimensions
+## Examples
 
-Out of scope. Do not create PCB layout findings, grades, or slides from board files. See `references/pcb-review.md` and `references/review-contract.md`. Schematic EMC/thermal/DFM coverage still uses schematic and datasheet evidence only; do not invent layout measurements to close those rows.
+**Layout-only:** classify out of scope → tell the user → ask for schematic/netlist/BOM → do not convert.
 
-### BOM Review Dimensions
-
-For every hardware review, apply the BOM review dimensions using the supplied BOM or a clearly labeled reconstructed inventory from structured schematic/netlist attributes. If no BOM and no recoverable component data exist, mark only the affected checks `not verifiable` and name the missing fields; do not skip the BOM coverage rows.
-
-1. **Component Availability & Lifecycle** - Stock, lead time, and lifecycle only from a page fetched in this review or a dated user export. Order when evidence exists: LCSC first, then Digi-Key, Mouser, Arrow, Avnet. No page and no export means `not verifiable`. Do not invent quantities. See `references/bom-review.md` §1 and `references/review-contract.md`.
-2. **Second Source & Alternatives** - Pin-compatible alternatives, parameter-based substitution, standardization.
-3. **BOM SKU Standardization** - Mandatory inventory of unique passive-component SKUs and evidence-based consolidation opportunities. See `references/bom-review.md` §2.4.
-4. **Part Number Accuracy** - MPN completeness, description quality, reference designator consistency.
-5. **Parameter Verification** - Electrical parameters, environmental ratings, compliance.
-6. **Package & Footprint Verification** - Package documentation, footprint-to-package matching, thermal/mechanical, assembly packaging (MSL, tape & reel), package alternatives.
-7. **Cost Analysis** - Cost optimization, supply chain risk assessment.
-
-### Standards Cross-Reference
-
-Always reference `references/standards-reference.md` during review to:
-- Validate design decisions against applicable industry standards (IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, USB-IF).
-- Identify compliance gaps.
-- Provide authoritative citations for findings.
-
-## Findings Severity Definitions
-
-| Severity | Icon | Color | Definition | Action Required |
-|----------|------|-------|-----------|----------------|
-| Critical | Red circle | #e74c3c | Design will fail or cause reliability/safety issues | Must fix before production |
-| Major | Yellow circle | #f1c40f | Design may work but has elevated risk or non-compliance | Strongly recommend fixing |
-| Minor | Black/default | #000000 | Suggestion for optimization or best practice | Optional improvement |
-| Okay | Green circle | #27ae60 | Evidence supports an acceptable condition | No corrective action required |
-
-## Key Review Principles
-
-1. **Be thorough** - Systematically go through every checklist item. Do not skip dimensions even if the design "looks fine."
-2. **Be specific** - Each finding must reference exact locations (sheet, component, net, BOM line).
-3. **Be actionable** - Every finding must include a concrete recommendation, not just a description of the problem.
-4. **Cross-reference standards** - When flagging an issue, cite the relevant standard (e.g., "Per IPC-2221 Table 6-1, minimum conductor spacing for 30V is 0.1mm").
-5. **Prioritize by risk** - Always highlight critical findings first in the summary and top risks section.
-6. **Maintain objectivity** - Base a finding on a file you opened. If the file is missing, mark the row `not verifiable`. If the file shows a risk that does not meet a Fail condition, use `major` or `minor` according to the impact.
-7. **Verify, don't assume** - Every connection-related finding MUST be backed by `TelNetlist` (TARGET `.tel`/`.net`/`.dsn`) or `KicadNetlist` (KiCad XML). Do not parse with line-prefix regex. For substitute parts, verify the substitute's datasheet pinout before asserting a defect carried over from another part. Derive I2C addresses by tracing each strap pin to its net. A PDF or screenshot without a parser lookup cannot be a Critical connectivity finding.
-8. **Close the coverage loop** - The final report includes the coverage table from `references/conditional-review.md`. Diagram file paths are evidence only when Step 1.8 required the diagrams. ESD, CERE/project baseline, and triggered feature checks each have an explicit status. `confirmed` cites a file. Missing evidence is `not verifiable`.
-
-## Resources
-
-### scripts/
-- validate_skill.py - Preflight wrapper for the Codex structural validator. Checks for PyYAML and the local quick_validate.py before running validation, with actionable install guidance when a dependency is missing.
-- `parse_netlist.py` - **MANDATORY parser for netlist inputs** (`.tel`/`.net`/`.dsn` — TARGET/PADS text format). Continuation-aware state machine that correctly handles multi-line nets (a net definition can span many physical lines; only the first begins with `'`/`$`), builds `pin->net` and `net->pins` indexes, and exposes reverse-lookup + verification helpers: `pin_net(ref,pin)`, `net_pins(net)`, `component_pins(ref)`, `is_connected`, `missing_pins(ref,expected)`, `verify_by_pinmap(ref,pinmap)`. CLI: `--comp`, `--pins`, `--net`, `--verify`. Use this INSTEAD of any ad-hoc line-prefix regex — see `references/netlist-verification.md`.
-- `parse_pads_ascii_netlist.py` - **MANDATORY parser for PADS/EasyEDA `.asc` netlist exports** with `*PART*` / `*NET*` / `*SIGNAL*` sections. Builds reverse pin/net indexes and reads `*MISC* ATTRIBUTE VALUES` into per-reference attributes. Its sanity gate reports duplicate nets, conflicting pin assignments, unknown part references, and attributes for absent parts. Do not use it for PCB-layout `.asc` files.
-- `reconstruct_bom_from_pads_ascii.py` - Builds a reference-level review-only BOM and SKU summary from PADS/EasyEDA `*PART*`/`*MISC* ATTRIBUTE VALUES` exports. Preserves assembly status and source attributes, treats only `Manufacturer Part` as an explicit MPN, and labels device identifiers as unverified. Usage: `python3 scripts/reconstruct_bom_from_pads_ascii.py <netlist.asc> [--output-dir <dir>]`; existing outputs are not overwritten unless `--overwrite` is specified. Read `references/bom-review.md` before using its output.
-- `parse_kicad_netlist.py` - **MANDATORY parser for KiCad schematic inputs** (`.kicad_sch`/`.sch`/`.schdoc`). Wraps KiCad's own `kicad_netlist_reader` (the official, native netlist parser shipped with every KiCad install) and exposes the SAME interface as `TelNetlist` (`pin_net`, `net_pins`, `component_pins`, `is_connected`, `missing_pins`, `verify_by_pinmap`, plus `lib_pins`). Requires the netlist be exported as XML first: `kicad-cli sch export netlist --format kicadxml -o board.xml <file>.kicad_sch`. The default `kicadsexpr` (S-expression) export is NOT XML and will silently yield 0 nets — do not feed it to either parser. CLI: `--comp`, `--pins`, `--net`, `--verify`. See `references/netlist-verification.md` (Rule 0).
-- `references/altium-monkey.md` - Native Altium `.PrjPcb`/`.SchDoc` parsing, version pinning, completeness/diagnostic gates, and project-level compiled-net evidence using the open-source `altium-monkey` package.
-- `generate_report.py` - Python script that converts structured JSON review data into a styled HTML report with radar chart, bar chart, score cards, and findings list. Execute this after assembling review results into JSON format.
-- `generate_pptx.py` - **The only command that writes a review PPT.** Reads `ee-review/deck.json` and fills `assets/review-slide-template.pptx` by replacing existing text runs. Usage: `python3 scripts/generate_pptx.py ee-review/deck.json -o ee-review/<project code>_design_review_<YYYYMMDD>.pptx`. See `references/ppt-style.md`.
-- `crop_schematic.py` - **The only command that crops a KiCad symbol or draws a red box/arrow on a review figure.** Usage: `python3 scripts/crop_schematic.py <board.kicad_sch> --ref <refdes> -o ee-review/<refdes>.png`. An existing PNG uses `--image` and optional `--box` / `--mark`.
-- `convert_layout.py` - Legacy PCB layout conversion helper. Not part of the review workflow; this skill does not review PCB layout.
-- `pads_common.py` - Shared PADS ASCII decoding, header/via/part/route parsing, and transform-error policy used by both converters. It tries UTF-8, CP936, CP1252, and Latin-1 in a deterministic order and records the selected encoding.
-- `pads_route_injector.py` - Parses PADS ASCII *ROUTE* section and injects KiCad segments and vias into converted .kicad_pcb file. Computes coordinate transformation (scale=2/3, Y-flip) by matching PADS PART positions with KiCad footprint positions, then enforces the fit-error threshold. Usage: `python3 pads_route_injector.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
-- `pads_full_converter.py` - Comprehensive PADS→KiCad converter that extends route injection with: (1) board outline injection from PADS BOARD items → Edge.Cuts, (2) silk screen text from *TEXT* → F.SilkS, (3) documentation lines from *LINES* → F.Fab, (4) copper zone creation on B.Cu using board outline + thermal connection analysis, (5) per-pad solder_paste_margin and solder_mask_margin injection from PARTDECAL pad stacks. Parses PARTDECAL pad stack levels (-2=paste, -1=mask, 0=copper) and computes margins using PADS ARPTOM global annular ring. Usage: `python3 pads_full_converter.py <input.asc> <input.kicad_pcb> <output.kicad_pcb> [--max-transform-error <mm>]`
-- `conversion-manifest.json` - Written beside converted outputs. Records source format, absolute input/output paths, requested export status, and post-conversion audit findings so a review can distinguish a successful conversion from a partially exported one.
-- `pads_export_all.bas` - VBScript for PADS Layout that exports ASCII, IPC-356 netlist, BOM, placement, layer stackup, and design rules in one run. Run inside PADS via `Tools -> Basic Scripts` or from command line with `layout.exe /runscript`.
-- `pads_export.bat` - Windows batch file that launches PADS Layout with a PCB file and auto-runs the export script. Designed for VM automation.
-
-### Known PADS-to-KiCad Conversion Limitations
-
-When converting PADS ASCII files via kicad-cli, the following data is NOT converted. Use `pads_full_converter.py` to inject the missing data:
-
-| Data Type | PADS Source | kicad-cli Output | Impact | Mitigation |
-|-----------|-------------|------------------|--------|------------|
-| Routing traces | *ROUTE* section | 0 segments | Cannot review trace width, spacing, return path | ✅ `pads_full_converter.py` injects segments |
-| Vias | *VIA* section + route layer changes | 0 vias | Cannot review via design, tenting | ✅ `pads_full_converter.py` injects vias |
-| Per-layer pad sizes | PARTDECAL pad stack (levels -2/-1/0) | Single size for all layers | Paste reduction lost, mask expansion lost | ✅ `pads_full_converter.py` injects margins |
-| Solder mask margin | PCB GENERAL + per-pad | NOT SET | Uses KiCad default (~0.051mm) | ✅ `pads_full_converter.py` injects from ARPTOM |
-| Solder paste margin | PARTDECAL paste level | NOT SET | Paste = copper (no reduction) | ✅ `pads_full_converter.py` injects from pad stack |
-| Board-level silk text | *TEXT* section | 0 gr_text | Board name, date, logos missing | ✅ `pads_full_converter.py` injects gr_text |
-| Copper zones/pours | *PLANE* / *COPPER* | 0 zones | No ground/power pour | ✅ `pads_full_converter.py` creates zone from board outline |
-| Board outline | *LINES* BOARD items | Partial Edge.Cuts | Board shape may be incomplete | ✅ `pads_full_converter.py` injects full outline |
-| Documentation lines | *LINES* items (LEVEL 127) | 0 lines | Assembly drawings incomplete | ✅ `pads_full_converter.py` injects on F.Fab |
-| Split planes | Multiple nets on same plane layer | Single zone per layer | Multiple nets need separate zones | ⚠️ Manual: create additional zones in KiCad |
-| Via tenting | Per-via mask settings | Default tented | May not match PADS | ⚠️ Manual: adjust via layers in KiCad |
-
-### references/
-- `schematic-review.md` - Schematic checks as trigger, evidence, pass, fail, severity, and citation.
-- `review-contract.md` - Six-field row, forbidden "checked" filler, canonical-parser connectivity gate, distributor evidence, diagram gate, and the single grade cap.
-- `netlist-verification.md` - **MANDATORY discipline for netlist/schematic reviews.** Defines format routing for TARGET/PADS `.tel`/`.net`/`.dsn`, PADS/EasyEDA `*SIGNAL*` `.asc`, KiCad XML, and Altium; requires parser-backed pin evidence and datasheet-backed supply/return semantics. Read before asserting connection-related findings.
-- `pcb-review.md` - States that PCB layout review is out of scope. Do not treat it as an active layout checklist.
-- `bom-review.md` - Detailed BOM review checklist covering 6 dimensions including package & footprint verification, with lifecycle status reference and cost risk assessment.
-- `standards-reference.md` - Quick reference guide to IPC, IEEE, IEC, CE/FCC, JEDEC, AEC-Q100, and USB-IF standards with application guidance.
-- `conditional-review.md` - Mandatory evidence gate and feature-triggered review matrix for ESD, electrical safety, battery thermal/energy protection, antenna matching, USB-C CC, 4G burst power, motor transients, low-power design, EMC/EMI, thermal management, DFM/DFT, firmware-hardware co-verification, and CERE/project power baselines.
-- `architecture-diagrams.md` - Graphviz format for the system block diagram and power tree. A multi-board design requires the system block diagram. Otherwise draw one when the topology would change a finding, and ask the user before skipping it (Step 1.8).
-- `file-preparation-guide.md` - Step-by-step export instructions for Altium Designer, PADS, KiCad, Eagle, Cadstar, and OrCAD/Allegro. Includes troubleshooting and expected output file structures. Altium source parsing uses `altium-monkey`; ask for an exported pin-level netlist only when the project compiler cannot load the files.
-- `ppt-style.md` - How to fill the review deck: cover fields, which conclusions become slides, and the two commands that produce figures and the PPT.
-
-### assets/
-No assets required. The HTML report is generated dynamically by the script.
-
-## Example Usage
-
-**Example 1: Layout-only request**
-
-**User input**: "Review this KiCad PCB"
-**Detected files**: `board.kicad_pcb`
-**Workflow**:
-1. Classify `.kicad_pcb` as out of scope for layout review
-2. Tell the user PCB layout review is not performed by this skill
-3. Ask for a schematic, netlist, or BOM if they want an electrical or procurement review
-4. Do not convert the board or invent routing/stackup findings
-
-**Example 2: Review schematic PDF + BOM**
-
-**User input**: "Review this schematic PDF and BOM file"
-**Detected files**: `schematic.pdf`, `bom.csv`
-**Review scope**: Schematic + BOM (combined)
-**Workflow**:
-1. Classify files - PDF = schematic, CSV = BOM
-2. No conversion needed (PDF and CSV are directly reviewable)
-3. Load `references/schematic-review.md`, `references/bom-review.md`, `references/standards-reference.md`, `references/conditional-review.md`, `references/review-contract.md`, and `references/architecture-diagrams.md`
-4. A PDF has no parser lookup. Extract readable values and part numbers. Any connectivity statement is at most a major finding. Do not file a Critical for an open pin, a short, or a missing pull-up from the PDF alone.
-5. Parse the BOM only for fields the file contains. Stock and lifecycle stay `not verifiable` unless a fetched page or a dated export is attached.
-6. Apply `references/schematic-review.md` and `references/bom-review.md`. Leave a row `not verifiable` when its evidence file is absent.
-7. Cross-reference findings with the citation you opened, not with the name of a standard.
-8. Score each dimension with the Step 4 cap. One Critical caps that dimension and the overall letter at C.
-9. Assemble JSON, run `generate_report.py`
-10. Present HTML report to user
+**Schematic PDF + BOM:** PDF connectivity ≤ major; BOM stock/lifecycle `not verifiable` without fetched/dated evidence; score with the contract cap; emit HTML.

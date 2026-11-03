@@ -40,15 +40,20 @@ Windows 下 Codex / WorkBuddy 目标目录：`%USERPROFILE%\.agents\skills\ee-re
 | PyYAML + Codex `quick_validate.py` | 可选（维护者） | 仅用于 `python3 scripts/validate_skill.py`。建议 venv：`python3 -m venv .venv && .venv/bin/pip install -r requirements-validation.txt` |
 | Windows 上的 PADS | 可选 | 自动导出原理图/网表；否则按手动导出说明 |
 
+**日常评审不必安装 PyYAML。** 系统 Python 没有 PyYAML 也能跑解析器、HTML 和 PPT 填字；只有维护者跑结构校验时才需要。
+
 CI 以 Python 3.11 测试。本机更新的 CPython 3.x 跑标准库脚本通常可用。PCB Layout 工具不在评审合同内。
+
+版本见根目录 [VERSION](VERSION) 与 [CHANGELOG.md](CHANGELOG.md)。当前包版本：**0.3.0**。
 
 ## 验证
 
 ```bash
 python3 tests/test_ee_review.py
+python3 scripts/check_package_hygiene.py
 ```
 
-带 PyYAML 的 venv（且能访问 Codex validator）：
+带 PyYAML 的 venv（且能访问 Codex validator）——**日常评审不需要**：
 
 ```bash
 python3 -m venv .venv
@@ -70,11 +75,29 @@ python3 scripts/generate_pptx.py \
 
 详见 [examples/acceptance-demo/README.md](examples/acceptance-demo/README.md)。
 
+### WorkBuddy / Codex 安装冒烟
+
+将本目录链接或复制到 `~/.agents/skills/ee-review`（Windows：`%USERPROFILE%\.agents\skills\ee-review`）后：
+
+1. 确认能读到 `SKILL.md` 与 `VERSION`。
+2. 退出并重新打开 WorkBuddy（或**新开**会话）以便重新发现 skill。
+3. 附上原理图/网表，提问：“请使用 ee-review skill 评审这份原理图。”
+4. 确认加载的是 `ee-review`（不是旧的 `schematic-review`），且评审本身不要求安装 PyYAML。
+
+`scripts/smoke_workbuddy_install.sh` 只检查安装路径结构；宿主 UI 重开仍需人工点一次。
+
 ## 分享与许可
 
 本仓库适用于通过访问控制进行**内部**分享。可为同事授予仓库只读权限，也可按上述步骤分发 skill 目录副本。
 
-当前仓库**没有**授予开源许可证。在权利人批准许可证并确认仓库可见性之前，不要公开发布，也不要向组织外部再分发。对外发布前，还应再检查演示文稿模板和参考资料是否有公司专属的权属或分发限制。
+见 [LICENSE](LICENSE)：专有 / 保留所有权利。在权利人另行授权并确认仓库可见性之前，不要公开发布或向组织外再分发。PPT 模板已做公司名/Logo 脱敏；对外分发前请再扫一遍。
+
+## 遗留脚本（不属于评审路径）
+
+`scripts/convert_layout.py`、`pads_full_converter.py`、`pads_route_injector.py`、
+`pads_common.py`、`pads_export_all.bas`、`pads_export.bat` 为 **legacy / not part of
+review**。新人不要在 ee-review 评审会话里跑它们。`references/file-preparation-guide.md`
+中的板图转换说明仅作离线辅助。
 
 ## 使用边界
 

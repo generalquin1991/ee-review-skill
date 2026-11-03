@@ -1,4 +1,10 @@
-"""Shared PADS ASCII parsing helpers used by both converters.
+"""LEGACY / NOT PART OF REVIEW.
+
+Shared helpers for the legacy PADS→KiCad layout converters only. The ee-review
+skill does not review PCB layout and must not use these helpers to invent
+layout findings.
+
+Shared PADS ASCII parsing helpers used by both converters.
 
 PADS exports are usually ASCII with a legacy Windows code page, but projects
 can contain UTF-8 metadata.  Keep decoding and the common sections in one

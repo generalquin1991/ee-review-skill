@@ -1,0 +1,12 @@
+Copyright (c) 2026 ee-review contributors. All rights reserved.
+
+This repository and the ee-review skill package are proprietary. They are
+intended for access-controlled internal use by the rights holder and authorized
+collaborators.
+
+No license to use, copy, modify, distribute, publish, or sublicense this work
+outside that authorization is granted by this file. Public redistribution or
+open-source publication requires a separate written grant from the rights holder.
+
+Third-party tools invoked at review time (for example KiCad, Graphviz, or
+altium-monkey) remain under their own licenses.

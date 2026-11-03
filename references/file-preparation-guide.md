@@ -1,10 +1,28 @@
 # File Preparation Guide - EDA Tool Export Instructions
 
-This guide provides step-by-step instructions for exporting design files from each major EDA tool so they can be processed by the EE Review skill.
+This guide helps export design files for the EE Review skill.
+
+**Review inputs that matter:** schematic source or PDF, pin-level netlist, and BOM.
+PCB layout files (`.kicad_pcb`, Gerber, layout `.asc` with `*ROUTE*`, `.PcbDoc`
+board geometry) are **out of scope** for findings. Scripts such as
+`scripts/convert_layout.py`, `pads_full_converter.py`, and `pads_route_injector.py`
+are **legacy / not part of review** — do not run them to invent layout findings.
+
+Prefer:
+
+| Need | Export |
+| --- | --- |
+| KiCad connectivity | `kicadxml` netlist (or supply `.kicad_sch` so the agent can export it) |
+| Altium connectivity | `.PrjPcb` for `altium-monkey`, or an exported pin-level netlist |
+| PADS / EasyEDA connectivity | ASCII with `*PART*` / `*NET*` / `*SIGNAL*` (not layout `*ROUTE*`) |
+| BOM | CSV / XLSX with MPN columns |
+
+Sections below that describe board conversion remain for optional offline
+workflows only.
 
 ---
 
-## Quick Reference Table
+## Quick Reference Table (legacy layout conversion — not the review path)
 
 | EDA Tool | Best Export Format | Conversion Needed | One-Line Command |
 |----------|-------------------|-------------------|-----------------|

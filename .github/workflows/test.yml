@@ -14,3 +14,45 @@ jobs:
           python-version: "3.11"
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+  package-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Package hygiene + acceptance smoke
+        run: python scripts/check_package_hygiene.py
+      - name: Skill frontmatter has required keys
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("SKILL.md").read_text(encoding="utf-8")
+          assert text.startswith("---\n"), "missing YAML frontmatter"
+          end = text.find("\n---\n", 4)
+          assert end > 0, "unclosed frontmatter"
+          fm = text[4:end]
+          assert "name: ee-review" in fm
+          assert "description:" in fm
+          print("frontmatter ok")
+          PY
+
+  validate-skill:
+    runs-on: ubuntu-latest
+    # Structural validate needs PyYAML + Codex quick_validate. Everyday reviews do not.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PyYAML
+        run: pip install -r requirements-validation.txt
+      - name: Run validate_skill when Codex validator is available
+        run: |
+          if [ -f "$HOME/.codex/skills/.system/skill-creator/scripts/quick_validate.py" ]; then
+            python scripts/validate_skill.py
+          else
+            echo "Codex quick_validate.py not present on runner; frontmatter checked in package-hygiene."
+          fi

@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 """
+LEGACY / NOT PART OF REVIEW.
+
+convert_layout.py is kept for optional offline conversion workflows only.
+The ee-review skill does **not** review PCB layout and must not run this script
+to invent stackup, routing, or Gerber findings. Prefer schematic, netlist, or
+BOM inputs and the review parsers under scripts/parse_*.py.
+
+---
+
 convert_layout.py - Auto-detect and convert PCB layout or schematic files to KiCad format.
 
 Detects input file format by extension and content, then uses kicad-cli to convert
